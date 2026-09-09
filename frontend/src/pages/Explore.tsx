@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CompassIcon, SearchIcon, SlidersHorizontalIcon } from 'lucide-react';
 import { DestinationCard } from '../components/cards/DestinationCard';

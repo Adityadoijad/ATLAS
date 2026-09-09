@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowDownIcon } from 'lucide-react';
 import { agents, pipeline } from '../../data/content';

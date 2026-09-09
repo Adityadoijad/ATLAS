@@ -27,6 +27,7 @@ interface AtlasState {
   authUser: AuthUser | null;
   authLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  initializeSession: (token: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   theme: Theme;
@@ -98,19 +99,23 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       .finally(() => setAuthLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await loginUser(email, password);
-    localStorage.setItem('atlas_access_token', result.access_token);
+  const initializeSession = useCallback(async (token: string) => {
+    localStorage.setItem('atlas_access_token', token);
     const [user, persistedTrips, persistedPlaces] = await Promise.all([
-      fetchCurrentUser(result.access_token),
-      fetchPersistedTrips(result.access_token),
-      fetchPersistedSavedPlaces(result.access_token)
+      fetchCurrentUser(token),
+      fetchPersistedTrips(token),
+      fetchPersistedSavedPlaces(token)
     ]);
     setAuthUser(user);
     setTrips(persistedTrips);
     setSavedItems(persistedPlaces);
     setSaved(persistedPlaces.map((place) => place.id));
   }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const result = await loginUser(email, password);
+    await initializeSession(result.access_token);
+  }, [initializeSession]);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     await registerUser({ name, email, password });
@@ -167,6 +172,7 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       authUser,
       authLoading,
       login,
+      initializeSession,
       register,
       logout,
       setTheme,
@@ -207,7 +213,7 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       toast,
       dismissToast
     }),
-    [theme, isDark, language, saved, savedItems, trips, bookings, lostFound, plan, toasts, authUser, authLoading, login, register, logout, toggleSaved, toast, dismissToast]
+    [theme, isDark, language, saved, savedItems, trips, bookings, lostFound, plan, toasts, authUser, authLoading, login, initializeSession, register, logout, toggleSaved, toast, dismissToast]
   );
 
   return <AtlasContext.Provider value={value}>{children}</AtlasContext.Provider>;

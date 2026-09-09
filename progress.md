@@ -1,88 +1,85 @@
 # ATLAS Project Progress
 
-**Last reviewed:** 5 September 2026  
-**Repository status:** `main` is synchronized with GitHub at commit `454fc98`. A local untracked `.vscode/` directory remains; it is not part of the uploaded changes.
+**Last reviewed:** 9 September 2026
+**Review method:** Read the project PRDs and completion reports, inspected every tracked source and scaffold directory, reviewed the current working tree, and ran local build, compile, import, health-check, and test-discovery commands.
 
 ## Overall status
 
-ATLAS has a polished frontend, a working **Phase 2A Gemini assistant integration**, and a verified **Phase 2B PostgreSQL persistence and authentication implementation**. User accounts, trips, itinerary days, and saved places are persisted with server-side ownership enforcement. The planned multi-agent, booking, payment, and third-party travel integrations remain to be built.
+ATLAS is a **functional travel-planning prototype, approximately 65% complete against the Version 1 PRD**. Its strongest areas are the polished React interface, email/password authentication, PostgreSQL persistence, a Gemini-backed single-turn travel assistant, and a structured, authenticated trip-generation endpoint with concurrent sub-agent context and fallback handling. The broader multi-agent planning and decision pipeline remains future work.
 
-## Completed work
+The repository also contains **uncommitted Google OAuth work in progress**. The source, migration, backend routes, frontend callback page, and configuration changes exist. The migration has been applied and its database schema verified; the OAuth flow itself has not yet been integration-tested against Google.
 
-### Foundation and documentation
+## Verified implementation
 
-- Project vision, product requirements, UX guidance, information architecture, design system, component library, and detailed page specifications are documented in `docs/PRD Files/`.
-- Repository configuration is in place: Git ignore rules, environment template, Docker Compose file, root package metadata, frontend Vite/TypeScript/Tailwind configuration, and backend Python requirements.
-- The project README describes the intended AI-powered, multi-agent travel-planning architecture.
+### Documentation and product definition
 
-### Frontend application
+- `docs/PRD Files/` contains the project overview, PRD, information architecture, UI/UX guidance, design system, component library, and detailed specifications for public, planning, assistant, community, booking, profile, and system pages.
+- The defined product is an AI-assisted travel planning platform, not only a booking UI: it calls for coordinated transport, hotel, food, activity, weather, maps, review, budget, and constraint agents.
+- `README.md`, `PHASE_2A_COMPLETION_REPORT.md`, and `PROJECT_COMPLETION_STATUS.md` document prior phases. This file reflects the current source tree and verification results.
 
-- React, TypeScript, Vite, Tailwind CSS, React Router, Framer Motion, Lucide icons, and Markdown rendering are configured.
-- Shared application shell and reusable UI are implemented: navigation bar, sidebar, footer, modals/overlays, UI primitives, cards, formatting helpers, global state, and mock API layer.
-- **15 frontend pages** have been created:
-  - Home / landing page and About page
-  - Dashboard
-  - Destination exploration
-  - Activities and food/restaurant discovery
-  - AI trip planner and detailed itinerary timeline
-  - AI assistant chat
-  - Bookings and reservation flow
-  - Trips overview (upcoming and past trips)
-  - Saved places
-  - Lost & Found
-  - Profile and settings
-- Travel content, destination recommendations, catalog data, and destination imagery are included for a realistic prototype.
-- The booking workflow, trip generation, destination/food/activity listings, saved places, and lost-and-found submissions currently operate through a mock service layer.
+### Frontend
 
-### AI assistant - Phase 2A complete
+- The Vite/React/TypeScript application contains all 15 planned UI pages: home, about, authentication, dashboard, exploration, activities, food, planner, itinerary, assistant, trips, bookings, saved places, Lost & Found, profile, and settings.
+- Shared layout, card, modal, form, planner, itinerary, Markdown, and booking-flow components are implemented, together with local destination imagery and catalogue data.
+- The production bundle builds successfully with `npx.cmd vite build` on 9 September 2026. The generated JavaScript bundle is about 625 kB before gzip and triggers Vite's chunk-size warning.
+- Email/password authentication is connected to the FastAPI backend. Persisted trips and saved places are loaded for authenticated users.
+- Discovery, activity, restaurant, booking, Lost & Found, map, weather, and planner experiences still rely substantially on local mock data and rule-based plan generation.
+- Google OAuth UI work is present but uncommitted: a Google login button, `/auth/callback` route, token session initialization, and backend auth URL helper have been added. The strict TypeScript check and production build pass.
 
-- FastAPI backend application with CORS support and a `GET /health` endpoint.
-- `POST /api/chat` endpoint with Pydantic request/response validation and safe error handling.
-- Gemini service is isolated behind a service layer and uses an ATLAS travel-assistant system prompt.
-- The frontend assistant calls the backend, has a 60-second timeout, and shows user-friendly network, server, and timeout errors.
-- API key configuration is backend-only via environment variables and is excluded from Git.
-- The Phase 2A completion report records successful end-to-end tests for health checks, Goa trip planning, Mumbai hotel recommendations, Kerala attractions, and CORS.
+### Backend, data, and AI
 
-### Persistence and authentication - Phase 2B complete
+- The active FastAPI application is `backend/app/main.py`; it configures CORS, session middleware, health checks, authentication, trips, saved places, and chat routes.
+- `GET /health` was verified locally with FastAPI's test client and returned `200 {"status":"ok"}`.
+- JWT authentication, bcrypt password hashing, registration, login, and `/api/auth/me` are implemented.
+- SQLAlchemy models, Pydantic schemas, Alembic migrations, and authenticated CRUD routes exist for users, trips, itinerary days, and saved places. Ownership is enforced in the route queries.
+- The Gemini service exposes a single-turn `POST /api/chat` travel-assistant endpoint. It reads its API key from backend environment configuration and contains a system prompt, but does not retain conversation history or invoke a real agent pipeline.
+- A preliminary `PlannerAgent` class calls route, hotel, food, and weather agents in parallel, but those agent files only return mock/stub data and the planner is exposed through the separate legacy `backend/main.py` entry point rather than the active `app` application.
+- Google OAuth backend work is present but uncommitted: Authlib configuration, session middleware, Google redirect/callback routes, a `google_id` column migration, and optional password hashes for OAuth-only users. Alembic reports the database is at `add_google_oauth (head)`; schema inspection confirms the nullable, uniquely indexed `google_id` column and nullable `password_hash` column.
+- `POST /api/trips/generate` accepts authenticated structured planning input, validates Gemini JSON against Pydantic schemas, and persists the generated trip and every itinerary day in a single database transaction.
+- The obsolete standalone `backend/main.py` entry point and duplicate empty backend scaffolds have been removed; `backend/app/main.py` is the sole application entry point.
+- JWT startup validation now requires `JWT_SECRET_KEY` to be at least 32 bytes. The local development secret was rotated to a 64-byte value without exposing it.
+- AI endpoints are rate limited in-process: authenticated trip generation is limited to 5 requests per minute per user, and chat is limited to 20 requests per minute per client IP.
+- The planner concurrently runs route, hotel, food, and weather agents with a five-second timeout per agent. Route and weather connectors use timeout-protected circuit breakers; all agent and integration failures produce marked fallback context rather than aborting trip persistence.
+- Structured Gemini generation retries transient or malformed responses up to two times. Configuration, validation, and provider failures return explicit `503`, `422`, and `502` responses instead of unhandled server errors.
 
-- PostgreSQL is configured through environment variables using SQLAlchemy, psycopg, and Alembic.
-- The initial Alembic migration creates the `user`, `trip`, `itinerary_day`, `saved_place`, and `alembic_version` tables.
-- Registration, duplicate-email validation, bcrypt password hashing, JWT login, `/api/auth/me`, and invalid-token handling are implemented.
-- Trips support authenticated create, list, retrieve, update, and delete operations.
-- Itinerary days support authenticated create, retrieve, update, and delete operations under their owning trip.
-- Saved places support authenticated create, list, and delete operations.
-- Ownership is enforced in backend database queries; cross-user trip and saved-place access was rejected during acceptance testing.
-- Persistence was verified after restarting the FastAPI backend.
-- The frontend authentication, trip, itinerary, and saved-place API integration is wired without redesigning the existing UI.
-- The PostgreSQL-backed acceptance workflow and frontend authentication smoke test passed.
+## Verification results
 
-## Current implementation snapshot
-
-| Area | Status | Notes |
+| Check | Result | Notes |
 | --- | --- | --- |
-| Public website and dashboard | Complete prototype | Implemented as React pages. |
-| Travel discovery and itinerary UI | Complete prototype | Uses local catalog and recommendation data. |
-| AI chat | Working Phase 2A integration | Frontend -> FastAPI -> Gemini -> frontend. Single-turn only. |
-| Trip-planning engine | Mock implementation | Generates local, rule-based sample plans. |
-| Booking and reservations | Mock implementation | No real providers or payments. |
-| User profile, settings, saved places, trips | Phase 2B persistence | Authenticated data is stored in PostgreSQL; some surrounding profile/settings features remain prototype UI. |
-| Lost & Found | UI/mock-data implementation | Submission returns an in-memory mock result. |
-| Database | Phase 2B complete | PostgreSQL connection and Alembic migration verified successfully. |
-| Authentication and authorization | Phase 2B complete | JWT authentication, bcrypt hashing, and server-side ownership checks verified. |
-| Automated tests | Partial | Phase 2B acceptance workflow was executed; broader automated test coverage remains to be added. |
-| Deployment | Not implemented | Deployment directories exist but contain no deployment configuration files. |
+| Frontend production build | Passed | `npx.cmd vite build` completed successfully. |
+| Frontend strict type check | Passed | `npx.cmd tsc --noEmit` completes with zero diagnostics after itinerary, environment, Markdown, button, and import fixes. |
+| Backend Python compilation | Passed | `python -m compileall` completed without errors. |
+| Backend application import | Passed | `import app.main` completed successfully. |
+| Backend health route | Passed | Returned HTTP 200 and `{"status":"ok"}`. |
+| Backend automated tests | Passed | `pytest -q` runs 7 isolated SQLite tests covering authentication, JWT rejection, CRUD, cross-user isolation, and atomic planner persistence. |
+| PostgreSQL planner persistence | Passed | A deterministic authenticated API call created one `trip` and one `itinerary_day`, then its temporary verification user and cascade-owned records were removed. |
+| Security and reliability tests | Passed | The expanded suite covers weak-secret startup rejection, generation rate limiting, Gemini retry behavior, and sub-agent failure fallback. |
+| Automated tests | Not implemented | `pytest -q` found no tests. |
+| Google OAuth database migration | Passed | `alembic upgrade head` completed; the database was already at `add_google_oauth (head)` and schema inspection confirmed the expected nullable columns and unique index. |
+| Live Gemini / Google OAuth sign-in | Not verified in this review | Each requires a real external provider request and credentials. |
+
+## Directory inventory
+
+| Directory | Current state |
+| --- | --- |
+| `docs/` | Complete PRD and design documentation. |
+| `frontend/` | Implemented React application, public image assets, local environment file, and generated `dist/` build output. |
+| `backend/app/` | Active FastAPI application, auth, persistence, Gemini service, migrations, and OAuth work in progress. |
+| `backend/agents/`, `backend/food/`, `backend/hotel/`, `backend/route/`, `backend/weather/` | Planner and specialised-agent scaffolding; current behavior is mock/stub based. |
+| `backend/api/`, `config/`, `database/`, `integrations/`, `middleware/`, `models/`, `routers/`, `schemas/`, `services/`, `tests/`, `utils/` | Empty legacy/scaffold directories; the active code is under `backend/app/`. |
+| `assets/`, `database/`, `deployment/`, `scripts/`, `tests/` | Empty top-level scaffold directories. |
+| `.claude/`, `.vscode/` | Local tool/editor settings; untracked and not product implementation. |
 
 ## Remaining work
 
-1. Build the real planner pipeline and specialized agents for travel, hotels, food, activities, weather, maps, reviews, budget optimisation, and constraints.
-2. Add multi-turn conversation history and persistent chat/trip data.
-3. Complete the remaining frontend workflows that still use mock services, including bookings and Lost & Found.
-4. Add broader automated unit, API, frontend, and integration tests around the Phase 2B workflows.
-5. Integrate live sources for maps, weather, travel inventory, reviews, and availability.
-6. Connect real reservation providers and payment processing if bookings are intended to be transactional.
-7. Add deployment configuration, environment-specific settings, observability, rate limiting, and production security hardening.
-8. Implement planned voice assistance, multilingual support, and advanced RAG only after the core data and agent workflows are stable.
+1. Complete an end-to-end Google OAuth sign-in test with configured Google credentials.
+2. Add the backend test suite and frontend type check to CI; replace the in-process limiter with a shared Redis-backed limiter before horizontally scaling.
+3. Expand the current route, hotel, food, and weather context agents into specialised live-data services for transport, activities, reviews, budget, and constraints.
+4. Add multi-turn, persisted chat conversations and connect them to saved trip context.
+5. Replace remaining mock discovery, maps, booking, and Lost & Found services with authenticated backend endpoints and then live providers where appropriate.
+6. Add real Gemini contract tests, browser flows, transaction rollback tests, and provider-integration tests.
+7. Add deployment configuration, production environment handling, monitoring, and production security hardening.
 
-## Suggested next milestone
+## Current milestone
 
-**Post-Phase 2B stabilization.** Expand automated coverage and finish migrating remaining mock workflows before beginning the planned multi-agent and live-provider work. Phase 2B itself is verified complete.
+**Phase 2D/E resilient planning baseline.** The app now has a test-backed, authenticated, rate-limited, atomic trip-generation pathway with bounded Gemini retries and partial-data fallbacks. The next meaningful step is expanding the specialist-agent and live-provider coverage.

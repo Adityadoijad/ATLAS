@@ -5,12 +5,12 @@ import { Toaster } from './components/ui/Overlays';
 import { Shell } from './components/layout/Shell';
 import { HomePage } from './pages/Home';
 import { ExplorePage } from './pages/Explore';
-import { PlannerPage } from './pages/Planner';
-import { ItineraryPage } from './pages/Itinerary';
-import { AssistantPage } from './pages/Assistant';
+const PlannerPage = React.lazy(() => import('./pages/Planner').then((module) => ({ default: module.PlannerPage })));
+const ItineraryPage = React.lazy(() => import('./pages/Itinerary').then((module) => ({ default: module.ItineraryPage })));
+const AssistantPage = React.lazy(() => import('./pages/Assistant').then((module) => ({ default: module.AssistantPage })));
 import { TripsPage } from './pages/Trips';
-import { BookingsPage } from './pages/Bookings';
-import { LostFoundPage } from './pages/LostFound';
+const BookingsPage = React.lazy(() => import('./pages/Bookings').then((module) => ({ default: module.BookingsPage })));
+const LostFoundPage = React.lazy(() => import('./pages/LostFound').then((module) => ({ default: module.LostFoundPage })));
 import { SavedPlacesPage } from './pages/SavedPlaces';
 import { ProfilePage } from './pages/Profile';
 import { SettingsPage } from './pages/Settings';
@@ -18,12 +18,18 @@ import { AboutPage } from './pages/About';
 import { DashboardPage } from './pages/Dashboard';
 import { FoodPage } from './pages/Food';
 import { AuthPage } from './pages/Auth';
+import { AuthCallbackPage } from './pages/AuthCallback';
 import { ActivitiesPage } from './pages/Activities';
+
+function LoadingSpinner() {
+  return <div className="flex min-h-48 items-center justify-center text-sm text-muted">Loading…</div>;
+}
 
 export function App() {
   return (
     <AtlasProvider>
       <BrowserRouter>
+        <React.Suspense fallback={<LoadingSpinner />}>
         <Routes>
           <Route
             path="/"
@@ -42,6 +48,7 @@ export function App() {
             } />
           <Route path="/login" element={<Shell><AuthPage /></Shell>} />
           <Route path="/register" element={<Shell><AuthPage /></Shell>} />
+          <Route path="/auth/callback" element={<Shell><AuthCallbackPage /></Shell>} />
           
           <Route
             path="/assistant"
@@ -69,6 +76,7 @@ export function App() {
           )}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </React.Suspense>
         <Toaster />
       </BrowserRouter>
     </AtlasProvider>);

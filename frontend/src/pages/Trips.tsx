@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LuggageIcon, PlusIcon } from 'lucide-react';
 import { TripCard } from '../components/cards/ContentCards';

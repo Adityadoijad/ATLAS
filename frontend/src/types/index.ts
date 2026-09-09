@@ -116,6 +116,15 @@ export interface ItineraryItem {
 }
 
 export interface ItineraryDay {
+  day_number: number;
+  activities: Array<{
+    time: string;
+    description: string;
+    location?: string;
+    is_realtime_data?: boolean;
+    fallback?: boolean;
+    is_fallback?: boolean;
+  }>;
   day: number;
   title: string;
   date: string;
@@ -124,7 +133,10 @@ export interface ItineraryDay {
 
 export interface TripPlan {
   id: string;
+  title: string;
   destination: string;
+  start_date: string;
+  end_date: string;
   country: string;
   image: string;
   startDate: string;
@@ -136,6 +148,8 @@ export interface TripPlan {
   weather: {day: string;temp: number;condition: string;}[];
   days: ItineraryDay[];
   reasoning: {title: string;detail: string;}[];
+  is_realtime_data?: boolean;
+  data_context?: Record<string, unknown>;
 }
 
 export interface PlannerPreferences {

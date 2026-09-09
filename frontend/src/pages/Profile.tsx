@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { CameraIcon, PencilIcon } from 'lucide-react';
 import { Badge, Button, Card, Field, Input, Select } from '../components/ui/Primitives';
 import { useAtlas } from '../contexts/AtlasContext';

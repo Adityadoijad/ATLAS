@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -106,9 +106,24 @@ export function ItineraryPage() {
   { label: 'Activities', value: inr(plan.breakdown[3].value) },
   { label: 'Remaining budget', value: inr(plan.budget - plan.estimatedCost) }];
 
+  const hasFallbackData = plan.is_realtime_data === false ||
+    plan.days.some((day) =>
+      day.activities.some((activity) =>
+        activity.is_realtime_data === false ||
+        activity.fallback === true ||
+        activity.is_fallback === true
+      )
+    );
 
   return (
     <div className="space-y-6">
+      {hasFallbackData &&
+      <div
+        role="status"
+        className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-[#92400E] dark:text-warning">
+        Note: Live weather and map services were unreachable. This itinerary uses estimated baseline data.
+      </div>
+      }
       <Card className="overflow-hidden">
         <div className="relative h-44 sm:h-56">
           <img src={plan.image} alt={plan.destination} className="h-full w-full object-cover" />

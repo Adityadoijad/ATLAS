@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { CalendarCheckIcon, PlusIcon } from 'lucide-react';
 import { BookingCard } from '../components/cards/ContentCards';
 import { BookingFlow } from '../components/booking/BookingFlow';

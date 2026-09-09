@@ -2,10 +2,10 @@ import React from 'react';
 import { LoaderIcon } from 'lucide-react';
 import { cn } from '../../utils/format';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
@@ -15,6 +15,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const variants: Record<ButtonVariant, string> = {
   primary: 'bg-brand text-white hover:bg-blue-700 shadow-sm',
   secondary: 'bg-surface text-ink border border-line hover:bg-subtle',
+  outline: 'border border-line bg-transparent text-ink hover:bg-subtle',
   ghost: 'text-muted hover:text-ink hover:bg-subtle',
   danger: 'bg-danger/10 text-danger border border-danger/25 hover:bg-danger/15',
   accent: 'bg-accent text-white hover:brightness-95'

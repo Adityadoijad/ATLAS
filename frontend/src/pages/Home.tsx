@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
+import type { ComponentType } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -18,11 +19,11 @@ import {
 import { Hero } from '../components/home/Hero';
 import { AgentFlow } from '../components/home/AgentFlow';
 import { DestinationCard } from '../components/cards/DestinationCard';
-import { Button, SectionHeading } from '../components/ui/Primitives';
+import { SectionHeading } from '../components/ui/Primitives';
 import { destinations } from '../data/destinations';
 import { features } from '../data/content';
 
-const iconMap: Record<string, React.ComponentType<{className?: string;}>> = {
+const iconMap: Record<string, ComponentType<{className?: string;}>> = {
   Sparkles: SparklesIcon,
   Network: NetworkIcon,
   UserRoundCheck: UserRoundCheckIcon,

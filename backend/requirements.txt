@@ -9,7 +9,11 @@ passlib[bcrypt]
 bcrypt<4.1
 pyjwt
 pytest
+pytest-asyncio
 httpx
 google-generativeai
 python-dotenv
 python-multipart
+authlib[client]
+itsdangerous>=2.0
+slowapi

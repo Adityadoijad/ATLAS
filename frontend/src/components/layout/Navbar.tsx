@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BellIcon, CompassIcon, MenuIcon, MoonIcon, SunIcon, XIcon } from 'lucide-react';

@@ -1,8 +1,9 @@
 """
 Chat route — POST /api/chat
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+from app.core.rate_limit import ai_rate_limiter
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.gemini_service import chat as gemini_chat
 
@@ -14,7 +15,7 @@ router = APIRouter()
     response_model=ChatResponse,
     summary="Send a message to the ATLAS AI travel assistant",
 )
-async def chat_endpoint(body: ChatRequest) -> ChatResponse:
+async def chat_endpoint(body: ChatRequest, request: Request) -> ChatResponse:
     """
     Accepts a user message and returns a Gemini-generated travel assistant response.
 
@@ -22,6 +23,7 @@ async def chat_endpoint(body: ChatRequest) -> ChatResponse:
     - All Gemini logic lives in `app.services.gemini_service`.
     - Errors from Gemini are caught and returned as a safe 502 response.
     """
+    await ai_rate_limiter.enforce(request, scope="chat", limit=20, window_seconds=60)
     message = body.message.strip()
     if not message:
         raise HTTPException(

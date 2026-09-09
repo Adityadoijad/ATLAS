@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { TicketIcon } from 'lucide-react';
 import { ActivityCard } from '../components/cards/ContentCards';
 import { EmptyState, Pill } from '../components/ui/Primitives';

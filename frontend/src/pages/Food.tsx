@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { UtensilsIcon } from 'lucide-react';
 import { CommunityInsight, RestaurantCard } from '../components/cards/ContentCards';
 import { Button, Card, EmptyState, Field, Pill } from '../components/ui/Primitives';
