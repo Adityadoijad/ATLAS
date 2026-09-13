@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { BookmarkIcon } from 'lucide-react';
 import { SavedPlaceCard } from '../components/cards/ContentCards';
 import { EmptyState, Tabs } from '../components/ui/Primitives';

@@ -1,15 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { CompassIcon, SearchIcon, SlidersHorizontalIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CompassIcon, MapPinIcon, SearchIcon, SlidersHorizontalIcon } from 'lucide-react';
 import { DestinationCard } from '../components/cards/DestinationCard';
-import { Button, Card, EmptyState, Field, Input, Pill, Skeleton } from '../components/ui/Primitives';
+import { DiscoverMore } from '../components/discover/DiscoverMore';
+import { Button, Card, EmptyState, Field, Input, Pill, SectionHeading, Skeleton } from '../components/ui/Primitives';
 import { Drawer, Dropdown } from '../components/ui/Overlays';
 import { categoryPills } from '../data/destinations';
-import { fetchDestinations } from '../services/atlasApi';
-import { Destination } from '../types';
+import { fetchDestinations, fetchRecommendations } from '../services/atlasApi';
+import { Destination, RecommendedDestination } from '../types';
 import { compactInr } from '../utils/format';
 
 export function ExplorePage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +22,8 @@ export function ExplorePage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const query = params.get('q') ?? '';
 
+  const [recommendations, setRecommendations] = useState<RecommendedDestination[]>([]);
+
   useEffect(() => {
     let active = true;
     fetchDestinations().then((data) => {
@@ -27,6 +31,22 @@ export function ExplorePage() {
         setDestinations(data);
         setLoading(false);
       }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const token = localStorage.getItem('atlas_access_token');
+    if (!token) return;
+    fetchRecommendations(token).
+    then((data) => {
+      if (active) setRecommendations(data);
+    }).
+    catch(() => {
+      if (active) setRecommendations([]);
     });
     return () => {
       active = false;
@@ -53,6 +73,21 @@ export function ExplorePage() {
         <h1 className="font-display text-3xl font-bold text-ink">Explore Destinations</h1>
         <p className="mt-1.5 text-[15px] text-muted">Discover amazing places around the world.</p>
       </header>
+
+      {recommendations.length > 0 &&
+      <section>
+          <SectionHeading title="Recommended for you" subtitle="Based on your saved places and past trips." />
+          <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {recommendations.slice(0, 3).map((d) =>
+          <div key={d.id}>
+                <DestinationCard destination={d} variant="detailed" onClick={() => navigate(`/explore/${encodeURIComponent(d.name)}`)} />
+                <p className="mt-2 text-[12px] text-muted">{d.reason}</p>
+              </div>
+          )}
+          </div>
+          <DiscoverMore token={localStorage.getItem('atlas_access_token')} />
+        </section>
+      }
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -109,6 +144,16 @@ export function ExplorePage() {
             </Card>
         )}
         </div> :
+      results.length === 0 && query.trim() ?
+      <EmptyState
+        icon={<MapPinIcon className="h-5 w-5" />}
+        title={`"${query}" isn't in our curated list`}
+        description="You can still see live weather, activities and restaurants for it — ATLAS looks up any real place, not just the ones featured here."
+        action={
+        <Button icon={<SearchIcon className="h-4 w-4" />} onClick={() => navigate(`/explore/${encodeURIComponent(query.trim())}`)}>
+              View live details for "{query.trim()}"
+            </Button>
+        } /> :
       results.length === 0 ?
       <EmptyState
         icon={<CompassIcon className="h-5 w-5" />}
@@ -123,7 +168,7 @@ export function ExplorePage() {
             setMinRating(0);
             setParams({});
           }}>
-          
+
               Reset filters
             </Button>
         } /> :
@@ -131,7 +176,7 @@ export function ExplorePage() {
 
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {results.map((destination) =>
-        <DestinationCard key={destination.id} destination={destination} variant="detailed" />
+        <DestinationCard key={destination.id} destination={destination} variant="detailed" onClick={() => navigate(`/explore/${encodeURIComponent(destination.name)}`)} />
         )}
         </div>
       }

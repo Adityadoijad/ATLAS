@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   BookmarkIcon,
@@ -14,28 +13,20 @@ import {
   TicketIcon } from
 'lucide-react';
 import { cn } from '../../utils/format';
+import { useTranslation } from 'react-i18next';
 
 const links = [
-{ to: '/dashboard', label: 'Home', icon: LayoutDashboardIcon },
-{ to: '/trips', label: 'Trips', icon: LuggageIcon },
-{ to: '/assistant', label: 'Assistant', icon: SparklesIcon },
-{ to: '/bookings', label: 'Bookings', icon: CalendarCheckIcon },
-{ to: '/explore', label: 'Explore', icon: CompassIcon },
-{ to: '/food', label: 'Food', icon: UtensilsIcon },
-{ to: '/activities', label: 'Activities', icon: TicketIcon },
-{ to: '/lost-found', label: 'Lost & Found', icon: PackageSearchIcon },
-{ to: '/saved', label: 'Saved Places', icon: BookmarkIcon },
-{ to: '/profile', label: 'Profile', icon: UserRoundIcon },
-{ to: '/settings', label: 'Settings', icon: SettingsIcon }];
+{ to: '/dashboard', key: 'nav.home', icon: LayoutDashboardIcon }, { to: '/trips', key: 'nav.trips', icon: LuggageIcon }, { to: '/assistant', key: 'nav.assistant', icon: SparklesIcon }, { to: '/bookings', key: 'nav.bookings', icon: CalendarCheckIcon }, { to: '/explore', key: 'nav.explore', icon: CompassIcon }, { to: '/food', key: 'nav.food', icon: UtensilsIcon }, { to: '/activities', key: 'nav.activities', icon: TicketIcon }, { to: '/lost-found', key: 'nav.lostFound', icon: PackageSearchIcon }, { to: '/saved', key: 'nav.saved', icon: BookmarkIcon }, { to: '/profile', key: 'nav.profile', icon: UserRoundIcon }, { to: '/settings', key: 'nav.settings', icon: SettingsIcon }];
 
 
 export function Sidebar() {
+  const { t } = useTranslation();
   return (
     <aside className="sticky top-[72px] hidden h-[calc(100vh-72px)] w-[228px] shrink-0 border-r border-line bg-surface/60 px-3 py-6 lg:block">
-      <p className="px-3 pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Workspace</p>
+      <p className="px-3 pb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{t('nav.workspace')}</p>
       <nav aria-label="Workspace">
         <ul className="space-y-0.5">
-          {links.map(({ to, label, icon: Icon }) =>
+          {links.map(({ to, key, icon: Icon }) =>
           <li key={to}>
               <NavLink
               to={to}
@@ -47,7 +38,7 @@ export function Sidebar() {
               }>
               
                 <Icon className="h-4.5 w-4.5" />
-                {label}
+                {t(key)}
               </NavLink>
             </li>
           )}
@@ -57,13 +48,13 @@ export function Sidebar() {
       <div className="mt-6 rounded-2xl border border-line bg-canvas p-4">
         <p className="text-[13px] font-semibold text-ink">Multi-agent planning</p>
         <p className="mt-1 text-[12px] leading-relaxed text-muted">
-          Nine agents coordinate your next itinerary in under a minute.
+          Nine agents coordinate your next itinerary in a couple of minutes.
         </p>
         <NavLink
           to="/plan"
           className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-lg bg-brand text-[13px] font-semibold text-white">
           
-          Plan a New Trip
+          {t('nav.plan')}
         </NavLink>
       </div>
     </aside>);

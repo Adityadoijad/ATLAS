@@ -15,8 +15,8 @@
  * - Links
  */
 
-import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../utils/format';
 
@@ -88,20 +88,11 @@ export function MarkdownContent({ children, className }: MarkdownContentProps) {
           ),
 
           // Code
-          code: ({ children, inline }) => {
-            if (inline) {
-              return (
-                <code className="bg-subtle text-brand px-1.5 py-0.5 rounded text-[13px] font-mono">
-                  {children}
-                </code>
-              );
-            }
-            return (
-              <code className="block bg-subtle p-3 rounded text-[13px] font-mono text-muted overflow-x-auto my-3">
-                {children}
-              </code>
-            );
-          },
+          code: ({ children, className }) => (
+            <code className={cn('rounded bg-subtle px-1.5 py-0.5 font-mono text-[13px] text-brand', className)}>
+              {children}
+            </code>
+          ),
           pre: ({ children }) => (
             <pre className="bg-subtle p-3 rounded overflow-x-auto my-3 text-[13px] font-mono">
               {children}
@@ -179,7 +170,7 @@ export function MarkdownContent({ children, className }: MarkdownContentProps) {
               {children}
             </em>
           ),
-        }}
+        } satisfies Components}
       >
         {children}
       </ReactMarkdown>

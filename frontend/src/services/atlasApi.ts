@@ -6,14 +6,17 @@
  * calls is the only change required to connect the real backend.
  */
 import { activities, bookings, lostFoundItems, restaurants, savedPlaces, trips } from '../data/catalog';
-import { destinations, IMAGES } from '../data/destinations';
+import { destinations, findDestination, IMAGES } from '../data/destinations';
 import {
   Activity,
   Booking,
   ChatMessage,
   Destination,
+  DestinationDetails,
   LostFoundItem,
+  DiscoveredDestination,
   PlannerPreferences,
+  RecommendedDestination,
   Restaurant,
   SavedPlace,
   TripPlan,
@@ -66,6 +69,10 @@ export async function fetchCurrentUser(token: string): Promise<AuthUser> {
   return apiRequest<AuthUser>('/api/auth/me', {}, token);
 }
 
+export function getGoogleAuthUrl(): string {
+  return `${apiUrl}/api/auth/google`;
+}
+
 export async function fetchPersistedTrips(token: string): Promise<Trip[]> {
   const data = await apiRequest<Array<Record<string, unknown>>>('/api/trips', {}, token);
   return data.map((trip) => ({
@@ -91,6 +98,92 @@ export async function fetchPersistedSavedPlaces(token: string): Promise<SavedPla
     image: String(place.image_url ?? IMAGES.goa),
     kind: (String(place.category ?? place.type) as SavedPlace['kind']),
     rating: Number(place.rating ?? 0)
+  }));
+}
+
+export async function fetchDestinationDetails(destinationName: string, token: string): Promise<DestinationDetails> {
+  const data = await apiRequest<{
+    destination: string;
+    is_realtime_location: boolean;
+    latitude: number | null;
+    longitude: number | null;
+    weather: {
+      is_realtime_data: boolean;
+      temperature_c: number | null;
+      feels_like_c: number | null;
+      humidity_percent: number | null;
+      wind_speed_ms: number | null;
+      condition: string | null;
+      icon: string | null;
+      forecast: Array<{ timestamp: string; temperature_c: number; condition: string; icon: string | null }>;
+      unavailable_reason: string | null;
+    };
+    activities: Array<{ name: string; category: string | null; rating: number | null; address: string | null; latitude: number | null; longitude: number | null; source: string }>;
+    activities_unavailable_reason: string | null;
+    restaurants: Array<{ name: string; category: string | null; rating: number | null; address: string | null; latitude: number | null; longitude: number | null; source: string }>;
+    restaurants_unavailable_reason: string | null;
+  }>(`/api/destinations/${encodeURIComponent(destinationName)}/details`, {}, token);
+
+  return {
+    destination: data.destination,
+    isRealtimeLocation: data.is_realtime_location,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    weather: {
+      isRealtimeData: data.weather.is_realtime_data,
+      temperatureC: data.weather.temperature_c,
+      feelsLikeC: data.weather.feels_like_c,
+      humidityPercent: data.weather.humidity_percent,
+      windSpeedMs: data.weather.wind_speed_ms,
+      condition: data.weather.condition,
+      icon: data.weather.icon,
+      forecast: data.weather.forecast.map((f) => ({
+        timestamp: f.timestamp,
+        temperatureC: f.temperature_c,
+        condition: f.condition,
+        icon: f.icon
+      })),
+      unavailableReason: data.weather.unavailable_reason
+    },
+    activities: data.activities,
+    activitiesUnavailableReason: data.activities_unavailable_reason,
+    restaurants: data.restaurants,
+    restaurantsUnavailableReason: data.restaurants_unavailable_reason
+  };
+}
+
+export async function fetchRecommendations(token: string): Promise<RecommendedDestination[]> {
+  const data = await apiRequest<Array<{ destination_id: string; score: number; reason: string }>>(
+    '/api/recommendations',
+    {},
+    token
+  );
+  return data.
+  map((item) => {
+    const destination = findDestination(item.destination_id);
+    return destination ? { ...destination, reason: item.reason } : null;
+  }).
+  filter((item): item is RecommendedDestination => item !== null);
+}
+
+export async function discoverDestinations(token: string): Promise<DiscoveredDestination[]> {
+  const data = await apiRequest<Array<{
+    name: string;
+    country: string;
+    description: string;
+    categories: string[];
+    estimated_budget_inr: number;
+    best_season: string;
+    duration_days: number;
+  }>>('/api/recommendations/discover', { method: 'POST' }, token);
+  return data.map((item) => ({
+    name: item.name,
+    country: item.country,
+    description: item.description,
+    categories: item.categories,
+    budgetFrom: item.estimated_budget_inr,
+    bestSeason: item.best_season,
+    durationDays: item.duration_days
   }));
 }
 
@@ -205,7 +298,7 @@ export async function createBooking(input: {
 }
 
 /** POST /plan  — the multi-agent planning pipeline */
-export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripPlan> {
+async function generateMockTripPlan(prefs: PlannerPreferences): Promise<TripPlan> {
   await latency(400);
   const match =
   destinations.find((d) => d.name.toLowerCase().includes(prefs.destination.toLowerCase().trim())) ??
@@ -267,14 +360,26 @@ export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripP
 
     };
   });
+  const itineraryDays = days.map((day) => ({
+    ...day,
+    day_number: day.day,
+    activities: day.items.map((item) => ({
+      time: item.time,
+      description: item.title,
+      location: item.location
+    }))
+  }));
 
   return {
     id: uid('plan'),
+    title: `Trip to ${match.name}`,
     destination: match.name,
     country: match.country,
     image: match.image,
     startDate: prefs.startDate || start.toISOString().slice(0, 10),
     endDate: prefs.endDate || new Date(start.getTime() + (totalDays - 1) * 86400000).toISOString().slice(0, 10),
+    start_date: prefs.startDate || start.toISOString().slice(0, 10),
+    end_date: prefs.endDate || new Date(start.getTime() + (totalDays - 1) * 86400000).toISOString().slice(0, 10),
     travelers: travellers,
     budget,
     estimatedCost,
@@ -291,6 +396,8 @@ export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripP
     { day: 'Thu', temp: 30, condition: 'Sunny' },
     { day: 'Fri', temp: 29, condition: 'Clear' }],
 
+    days: itineraryDays,
+
     reasoning: [
     { title: 'Matches your interests', detail: `${prefs.interests.slice(0, 3).join(', ') || 'Nature, Food'} appear in 8 of the 12 scheduled stops.` },
     { title: 'Fits your budget', detail: `Planned spend is ${Math.round(estimatedCost / budget * 100)}% of your stated budget, leaving a buffer for extras.` },
@@ -304,6 +411,105 @@ export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripP
 }
 
 /** POST /assistant/message  → POST /api/chat (FastAPI + Gemini) */
+interface GeneratedItineraryDay {
+  day_number: number;
+  date: string;
+  title: string;
+  description: string | null;
+}
+
+interface GeneratedTripResponse {
+  id: string;
+  title: string;
+  destination: string;
+  start_date: string;
+  end_date: string;
+  travelers: number;
+  budget: number | null;
+  itinerary_days: GeneratedItineraryDay[];
+  data_context?: Record<string, unknown>;
+}
+
+function mapGeneratedTrip(response: GeneratedTripResponse, prefs: PlannerPreferences): TripPlan {
+  const match = destinations.find((destination) => destination.name.toLowerCase() === response.destination.toLowerCase());
+  const budget = response.budget ?? prefs.budget;
+  const days = response.itinerary_days.map((day) => {
+    const activities = (day.description ?? '').split('\n').filter(Boolean).map((line) => {
+      const [time = '09:00', description = 'Planned activity', location = response.destination, cost = '0'] = line.split(' | ');
+      return { time, description, location, estimated_cost: Number(cost) || 0 };
+    });
+    return {
+      day_number: day.day_number,
+      day: day.day_number,
+      date: day.date,
+      title: day.title,
+      activities,
+      items: activities.map((activity) => ({
+        time: activity.time,
+        title: activity.description,
+        location: activity.location,
+        duration: 'Flexible',
+        cost: activity.estimated_cost,
+        rating: 0,
+        distanceKm: 0,
+        kind: 'activity' as const
+      }))
+    };
+  });
+
+  return {
+    id: response.id,
+    title: response.title,
+    destination: response.destination,
+    country: match?.country ?? '',
+    image: match?.image ?? IMAGES.goa,
+    startDate: response.start_date,
+    endDate: response.end_date,
+    start_date: response.start_date,
+    end_date: response.end_date,
+    travelers: response.travelers,
+    budget,
+    estimatedCost: days.reduce((total, day) => total + day.items.reduce((sum, item) => sum + item.cost, 0), 0),
+    breakdown: [
+      { label: 'Accommodation', value: 0 },
+      { label: 'Travel', value: 0 },
+      { label: 'Food', value: 0 },
+      { label: 'Activities', value: days.reduce((total, day) => total + day.items.reduce((sum, item) => sum + item.cost, 0), 0) }
+    ],
+    weather: [],
+    days,
+    reasoning: [{ title: 'Generated by ATLAS', detail: 'This itinerary was generated and saved to your account.' }],
+    is_realtime_data: response.data_context?.is_realtime_data === false ? false : undefined,
+    data_context: response.data_context
+  };
+}
+
+export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripPlan> {
+  const token = localStorage.getItem('atlas_access_token');
+  if (!token) return generateMockTripPlan(prefs);
+
+  const response = await apiRequest<GeneratedTripResponse>('/api/trips/generate', {
+    method: 'POST',
+    body: JSON.stringify({
+      destination: prefs.destination,
+      start_date: prefs.startDate,
+      end_date: prefs.endDate,
+      budget: prefs.budget,
+      travelers: Math.max(1, prefs.adults + prefs.children),
+      preferences: {
+        interests: prefs.interests,
+        transport: prefs.transport,
+        accommodation: prefs.accommodation,
+        food: prefs.food,
+        accessibility: prefs.accessibility,
+        notes: prefs.notes
+      },
+      currency: prefs.currency
+    })
+  }, token);
+  return mapGeneratedTrip(response, prefs);
+}
+
 export async function sendAssistantMessage(text: string): Promise<ChatMessage> {
   // Base URL from Vite env variable; falls back to localhost:8000 for safety.
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';

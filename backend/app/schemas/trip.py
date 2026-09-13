@@ -35,6 +35,7 @@ class TripResponse(TripBase):
     created_at: datetime
     updated_at: datetime
     itinerary_days: List[ItineraryDayResponse] = []
+    data_context: dict[str, Any] = Field(default_factory=dict)
 
     class Config:
         from_attributes = True

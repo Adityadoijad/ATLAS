@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { CalendarRangeIcon, HeartIcon, MapPinIcon, StarIcon } from 'lucide-react';
 import { Destination } from '../../types';

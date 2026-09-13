@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRightIcon,
@@ -12,9 +12,11 @@ import {
 'lucide-react';
 import { BudgetCard, StatsCard, WeatherCard } from '../components/cards/ContentCards';
 import { DestinationCard } from '../components/cards/DestinationCard';
-import { Badge, Button, Card, SectionHeading } from '../components/ui/Primitives';
+import { DiscoverMore } from '../components/discover/DiscoverMore';
+import { Badge, Button, Card, SectionHeading, Skeleton } from '../components/ui/Primitives';
 import { useAtlas } from '../contexts/AtlasContext';
-import { destinations } from '../data/destinations';
+import { fetchRecommendations } from '../services/atlasApi';
+import { RecommendedDestination } from '../types';
 import { formatRange, inr } from '../utils/format';
 
 const activity = [
@@ -35,6 +37,31 @@ export function DashboardPage() {
   const { trips, bookings, savedItems } = useAtlas();
   const navigate = useNavigate();
   const upcoming = trips.find((t) => t.status === 'upcoming');
+
+  const [recommendations, setRecommendations] = useState<RecommendedDestination[]>([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const token = localStorage.getItem('atlas_access_token');
+    if (!token) {
+      setRecommendationsLoading(false);
+      return;
+    }
+    fetchRecommendations(token).
+    then((data) => {
+      if (active) setRecommendations(data);
+    }).
+    catch(() => {
+      if (active) setRecommendations([]);
+    }).
+    finally(() => {
+      if (active) setRecommendationsLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -106,11 +133,32 @@ export function DashboardPage() {
                 </Link>
               } />
             
+            {recommendationsLoading ?
             <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {destinations.slice(4, 7).map((d) =>
-              <DestinationCard key={d.id} destination={d} onClick={() => navigate('/explore')} />
+                {Array.from({ length: 3 }).map((_, i) =>
+              <Card key={i} className="overflow-hidden p-0">
+                    <Skeleton className="h-40 rounded-none" />
+                    <div className="space-y-2 p-4">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-3 w-1/3" />
+                    </div>
+                  </Card>
               )}
-            </div>
+              </div> :
+            recommendations.length === 0 ?
+            <p className="mt-5 text-[13px] text-muted">Log in to see recommendations personalized to your trips and saved places.</p> :
+
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {recommendations.slice(0, 3).map((d) =>
+              <div key={d.id}>
+                    <DestinationCard destination={d} onClick={() => navigate(`/explore/${encodeURIComponent(d.name)}`)} />
+                    <p className="mt-2 text-[12px] text-muted">{d.reason}</p>
+                  </div>
+              )}
+              </div>
+            }
+
+            <DiscoverMore token={localStorage.getItem('atlas_access_token')} />
           </section>
 
           <Card className="p-5">

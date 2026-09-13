@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, SparklesIcon } from 'lucide-react';
 import { Button, Card, Field, Input, Pill, Select, Textarea } from '../components/ui/Primitives';
@@ -68,8 +68,12 @@ function TogglePills({
 }
 
 export function PlannerPage() {
+  const location = useLocation();
+  const prefilledDestination = (location.state as { destination?: string } | null)?.destination;
   const [step, setStep] = useState(1);
-  const [prefs, setPrefs] = useState<PlannerPreferences>(emptyPrefs);
+  const [prefs, setPrefs] = useState<PlannerPreferences>(
+    prefilledDestination ? { ...emptyPrefs, destination: prefilledDestination } : emptyPrefs
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [processing, setProcessing] = useState(false);
   const { setPlan, toast } = useAtlas();

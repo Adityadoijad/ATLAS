@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BellIcon, CompassIcon, MenuIcon, MoonIcon, SunIcon, XIcon } from 'lucide-react';
@@ -6,18 +6,15 @@ import { useAtlas } from '../../contexts/AtlasContext';
 import { languages } from '../../data/content';
 import { cn } from '../../utils/format';
 import { Dropdown } from '../ui/Overlays';
+import { useTranslation } from 'react-i18next';
 
 export const primaryNav = [
-{ to: '/', label: 'Home' },
-{ to: '/trips', label: 'Trips' },
-{ to: '/assistant', label: 'Assistant' },
-{ to: '/bookings', label: 'Bookings' },
-{ to: '/explore', label: 'Explore' },
-{ to: '/about', label: 'About' }];
+{ to: '/', key: 'nav.home' }, { to: '/trips', key: 'nav.trips' }, { to: '/assistant', key: 'nav.assistant' }, { to: '/bookings', key: 'nav.bookings' }, { to: '/explore', key: 'nav.explore' }, { to: '/about', key: 'nav.about' }];
 
 
 export function Navbar() {
   const { isDark, setTheme, theme, language, setLanguage, toast, authUser, logout } = useAtlas();
+  const { t } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
@@ -50,7 +47,7 @@ export function Navbar() {
                       active ? 'text-brand' : 'text-muted hover:text-ink'
                     )}>
                     
-                    {item.label}
+                    {t(item.key)}
                     {active &&
                     <motion.span
                       layoutId="nav-underline"
@@ -98,7 +95,7 @@ export function Navbar() {
             
             {authUser ? authUser.name.slice(0, 2).toUpperCase() : 'EX'}
           </Link>
-          {authUser ? <button onClick={logout} className="hidden text-sm font-semibold text-muted hover:text-ink sm:block">Log out</button> : <Link to="/login" className="hidden text-sm font-semibold text-brand sm:block">Log in</Link>}
+          {authUser ? <button onClick={logout} className="hidden text-sm font-semibold text-muted hover:text-ink sm:block">{t('nav.logout')}</button> : <Link to="/login" className="hidden text-sm font-semibold text-brand sm:block">{t('nav.login')}</Link>}
           <button
             onClick={() => setMobileOpen((o) => !o)}
             aria-label="Toggle navigation menu"
@@ -130,7 +127,7 @@ export function Navbar() {
               )
               }>
               
-                  {item.label}
+                  {t(item.key)}
                 </NavLink>
               </li>
           )}
@@ -140,7 +137,7 @@ export function Navbar() {
               onClick={() => setMobileOpen(false)}
               className="block rounded-xl bg-brand px-4 py-2.5 text-center text-sm font-semibold text-white">
               
-                Plan a New Trip
+                {t('nav.plan')}
               </NavLink>
             </li>
           </ul>
