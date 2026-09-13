@@ -12,6 +12,8 @@ class Settings:
     MIN_JWT_SECRET_BYTES = 32
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "")
+    OPENTRIPMAP_API_KEY: str = os.getenv("OPENTRIPMAP_API_KEY", "")
+    FOURSQUARE_API_KEY: str = os.getenv("FOURSQUARE_API_KEY", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL")
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
