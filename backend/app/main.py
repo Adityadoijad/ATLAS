@@ -13,6 +13,8 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.trips import router as trips_router
 from app.api.routes.saved_places import router as saved_places_router
 from app.api.routes.planner import router as planner_router
+from app.api.routes.recommendations import router as recommendations_router
+from app.api.routes.destinations import router as destinations_router
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -61,6 +63,8 @@ def create_app() -> FastAPI:
     app.include_router(trips_router, prefix="/api")
     app.include_router(planner_router, prefix="/api")
     app.include_router(saved_places_router, prefix="/api")
+    app.include_router(recommendations_router, prefix="/api")
+    app.include_router(destinations_router, prefix="/api")
     app.include_router(chat_router, prefix="/api", tags=["Chat"])
 
     return app
