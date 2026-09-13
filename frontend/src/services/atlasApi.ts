@@ -6,14 +6,17 @@
  * calls is the only change required to connect the real backend.
  */
 import { activities, bookings, lostFoundItems, restaurants, savedPlaces, trips } from '../data/catalog';
-import { destinations, IMAGES } from '../data/destinations';
+import { destinations, findDestination, IMAGES } from '../data/destinations';
 import {
   Activity,
   Booking,
   ChatMessage,
   Destination,
+  DestinationDetails,
   LostFoundItem,
+  DiscoveredDestination,
   PlannerPreferences,
+  RecommendedDestination,
   Restaurant,
   SavedPlace,
   TripPlan,
@@ -95,6 +98,92 @@ export async function fetchPersistedSavedPlaces(token: string): Promise<SavedPla
     image: String(place.image_url ?? IMAGES.goa),
     kind: (String(place.category ?? place.type) as SavedPlace['kind']),
     rating: Number(place.rating ?? 0)
+  }));
+}
+
+export async function fetchDestinationDetails(destinationName: string, token: string): Promise<DestinationDetails> {
+  const data = await apiRequest<{
+    destination: string;
+    is_realtime_location: boolean;
+    latitude: number | null;
+    longitude: number | null;
+    weather: {
+      is_realtime_data: boolean;
+      temperature_c: number | null;
+      feels_like_c: number | null;
+      humidity_percent: number | null;
+      wind_speed_ms: number | null;
+      condition: string | null;
+      icon: string | null;
+      forecast: Array<{ timestamp: string; temperature_c: number; condition: string; icon: string | null }>;
+      unavailable_reason: string | null;
+    };
+    activities: Array<{ name: string; category: string | null; rating: number | null; address: string | null; latitude: number | null; longitude: number | null; source: string }>;
+    activities_unavailable_reason: string | null;
+    restaurants: Array<{ name: string; category: string | null; rating: number | null; address: string | null; latitude: number | null; longitude: number | null; source: string }>;
+    restaurants_unavailable_reason: string | null;
+  }>(`/api/destinations/${encodeURIComponent(destinationName)}/details`, {}, token);
+
+  return {
+    destination: data.destination,
+    isRealtimeLocation: data.is_realtime_location,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    weather: {
+      isRealtimeData: data.weather.is_realtime_data,
+      temperatureC: data.weather.temperature_c,
+      feelsLikeC: data.weather.feels_like_c,
+      humidityPercent: data.weather.humidity_percent,
+      windSpeedMs: data.weather.wind_speed_ms,
+      condition: data.weather.condition,
+      icon: data.weather.icon,
+      forecast: data.weather.forecast.map((f) => ({
+        timestamp: f.timestamp,
+        temperatureC: f.temperature_c,
+        condition: f.condition,
+        icon: f.icon
+      })),
+      unavailableReason: data.weather.unavailable_reason
+    },
+    activities: data.activities,
+    activitiesUnavailableReason: data.activities_unavailable_reason,
+    restaurants: data.restaurants,
+    restaurantsUnavailableReason: data.restaurants_unavailable_reason
+  };
+}
+
+export async function fetchRecommendations(token: string): Promise<RecommendedDestination[]> {
+  const data = await apiRequest<Array<{ destination_id: string; score: number; reason: string }>>(
+    '/api/recommendations',
+    {},
+    token
+  );
+  return data.
+  map((item) => {
+    const destination = findDestination(item.destination_id);
+    return destination ? { ...destination, reason: item.reason } : null;
+  }).
+  filter((item): item is RecommendedDestination => item !== null);
+}
+
+export async function discoverDestinations(token: string): Promise<DiscoveredDestination[]> {
+  const data = await apiRequest<Array<{
+    name: string;
+    country: string;
+    description: string;
+    categories: string[];
+    estimated_budget_inr: number;
+    best_season: string;
+    duration_days: number;
+  }>>('/api/recommendations/discover', { method: 'POST' }, token);
+  return data.map((item) => ({
+    name: item.name,
+    country: item.country,
+    description: item.description,
+    categories: item.categories,
+    budgetFrom: item.estimated_budget_inr,
+    bestSeason: item.best_season,
+    durationDays: item.duration_days
   }));
 }
 

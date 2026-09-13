@@ -101,6 +101,118 @@ export const destinations: Destination[] = [
   insight: 'Marine Drive at night is highly recommended for a relaxing evening by the sea.',
   highlights: ['Gateway of India', 'Vibrant nightlife', 'Iconic street food'],
   concerns: ['Heavy traffic', 'Expensive accommodation']
+},
+{
+  id: 'manali',
+  name: 'Manali',
+  country: 'India',
+  image: IMAGES.manali,
+  rating: 4.7,
+  reviews: 28900,
+  budgetFrom: 16000,
+  bestSeason: 'Mar – Jun',
+  durationDays: 5,
+  description: 'Snow-capped Himalayan peaks, pine forests and adventure sports in the Kullu valley.',
+  categories: ['Mountains', 'Adventure', 'Nature'],
+  insight: 'Solang Valley is best visited early morning before tour buses arrive.',
+  highlights: ['Paragliding', 'River rafting', 'Snow trekking'],
+  concerns: ['Roads close in heavy snow', 'Crowded during holidays']
+},
+{
+  id: 'jaipur',
+  name: 'Jaipur',
+  country: 'India',
+  image: IMAGES.jaipur,
+  rating: 4.7,
+  reviews: 31500,
+  budgetFrom: 15000,
+  bestSeason: 'Oct – Mar',
+  durationDays: 4,
+  description: 'The Pink City — grand forts, royal palaces and vibrant bazaars of Rajasthan.',
+  categories: ['Culture', 'Cities', 'Adventure'],
+  insight: 'Amber Fort at sunrise avoids both the heat and the crowds.',
+  highlights: ['Hawa Mahal', 'Amber Fort', 'Rajasthani cuisine'],
+  concerns: ['Very hot summers', 'Persistent souvenir sellers']
+},
+{
+  id: 'kyoto',
+  name: 'Kyoto',
+  country: 'Japan',
+  image: IMAGES.kyoto,
+  rating: 4.9,
+  reviews: 26700,
+  budgetFrom: 110000,
+  bestSeason: 'Mar – May',
+  durationDays: 6,
+  description: 'Thousands of temples, geisha districts and bamboo groves in Japan’s cultural heart.',
+  categories: ['Culture', 'Nature', 'Food'],
+  insight: 'Arashiyama Bamboo Grove is calmest right after sunrise.',
+  highlights: ['Fushimi Inari Shrine', 'Kaiseki dining', 'Cherry blossoms'],
+  concerns: ['Peak season pricing', 'Limited English signage']
+},
+{
+  id: 'bali',
+  name: 'Bali',
+  country: 'Indonesia',
+  image: IMAGES.bali,
+  rating: 4.7,
+  reviews: 38200,
+  budgetFrom: 65000,
+  bestSeason: 'Apr – Oct',
+  durationDays: 6,
+  description: 'Rice terraces, surf breaks and temple ceremonies across the Island of the Gods.',
+  categories: ['Beaches', 'Nature', 'Adventure'],
+  insight: 'Ubud’s rice terraces are least crowded on weekday mornings.',
+  highlights: ['Uluwatu surf', 'Rice terrace treks', 'Temple ceremonies'],
+  concerns: ['Traffic in Canggu/Seminyak', 'Monsoon season flooding']
+},
+{
+  id: 'santorini',
+  name: 'Santorini',
+  country: 'Greece',
+  image: IMAGES.santorini,
+  rating: 4.8,
+  reviews: 24100,
+  budgetFrom: 145000,
+  bestSeason: 'Jun – Sep',
+  durationDays: 5,
+  description: 'Whitewashed cliffside villages overlooking the Aegean’s most famous caldera sunsets.',
+  categories: ['Beaches', 'Culture', 'Nature'],
+  insight: 'Oia’s sunset viewpoint fills up an hour early — arrive by 6pm in summer.',
+  highlights: ['Caldera sunsets', 'Volcanic beaches', 'Cliffside dining'],
+  concerns: ['Expensive in peak season', 'Very touristy in July–Aug']
+},
+{
+  id: 'dubai',
+  name: 'Dubai',
+  country: 'UAE',
+  image: IMAGES.dubai,
+  rating: 4.6,
+  reviews: 33400,
+  budgetFrom: 85000,
+  bestSeason: 'Nov – Mar',
+  durationDays: 4,
+  description: 'Futuristic skylines, desert safaris and luxury shopping in the heart of the Gulf.',
+  categories: ['Cities', 'Adventure', 'Culture'],
+  insight: 'Desert safaris are noticeably cooler and less crowded at sunset.',
+  highlights: ['Burj Khalifa', 'Desert safari', 'Gold Souk'],
+  concerns: ['Extreme summer heat', 'Higher daily costs']
+},
+{
+  id: 'swiss-alps',
+  name: 'Swiss Alps',
+  country: 'Switzerland',
+  image: IMAGES.swissAlps,
+  rating: 4.9,
+  reviews: 19800,
+  budgetFrom: 175000,
+  bestSeason: 'Jun – Sep',
+  durationDays: 6,
+  description: 'Alpine lakes, cable-car summits and postcard villages across the Swiss highlands.',
+  categories: ['Mountains', 'Nature', 'Adventure'],
+  insight: 'Early morning trains to Jungfraujoch avoid both crowds and cloud cover.',
+  highlights: ['Cable car summits', 'Alpine lakes', 'Scenic rail routes'],
+  concerns: ['High cost of travel', 'Weather-dependent visibility']
 }
 ];
 
@@ -120,4 +232,9 @@ export const categoryPills: string[] = [
 
 export function findDestination(id: string) {
   return destinations.find((d) => d.id === id);
+}
+
+export function findDestinationByName(name: string) {
+  const normalized = name.trim().toLowerCase();
+  return destinations.find((d) => d.name.toLowerCase() === normalized);
 }

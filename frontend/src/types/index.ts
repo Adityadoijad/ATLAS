@@ -24,6 +24,61 @@ export interface Destination {
   concerns: string[];
 }
 
+export interface RecommendedDestination extends Destination {
+  reason: string;
+}
+
+export interface DiscoveredDestination {
+  name: string;
+  country: string;
+  description: string;
+  categories: string[];
+  budgetFrom: number;
+  bestSeason: string;
+  durationDays: number;
+}
+
+export interface WeatherForecastEntry {
+  timestamp: string;
+  temperatureC: number;
+  condition: string;
+  icon: string | null;
+}
+
+export interface DestinationWeather {
+  isRealtimeData: boolean;
+  temperatureC: number | null;
+  feelsLikeC: number | null;
+  humidityPercent: number | null;
+  windSpeedMs: number | null;
+  condition: string | null;
+  icon: string | null;
+  forecast: WeatherForecastEntry[];
+  unavailableReason: string | null;
+}
+
+export interface RealPlace {
+  name: string;
+  category: string | null;
+  rating: number | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  source: string;
+}
+
+export interface DestinationDetails {
+  destination: string;
+  isRealtimeLocation: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  weather: DestinationWeather;
+  activities: RealPlace[];
+  activitiesUnavailableReason: string | null;
+  restaurants: RealPlace[];
+  restaurantsUnavailableReason: string | null;
+}
+
 export interface Restaurant {
   id: string;
   name: string;

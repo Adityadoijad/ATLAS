@@ -77,7 +77,7 @@ function RecommendedCarousel() {
         
         {destinations.slice(0, 8).map((destination) =>
         <div key={destination.id} className="w-[270px] shrink-0 snap-start">
-            <DestinationCard destination={destination} onClick={() => navigate('/explore')} />
+            <DestinationCard destination={destination} onClick={() => navigate(`/explore/${encodeURIComponent(destination.name)}`)} />
           </div>
         )}
       </div>
