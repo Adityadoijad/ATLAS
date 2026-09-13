@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Booking, LostFoundItem, TripPlan, Trip, SavedPlace } from '../types';
 import { bookings as seedBookings, lostFoundItems as seedLostFound } from '../data/catalog';
 import { uid } from '../utils/format';
+import i18n, { supportedLanguages, type LanguageCode } from '../i18n';
 import {
   AuthUser,
   deletePersistedSavedPlace,
@@ -33,7 +34,7 @@ interface AtlasState {
   theme: Theme;
   setTheme: (t: Theme) => void;
   isDark: boolean;
-  language: string;
+  language: LanguageCode;
   setLanguage: (code: string) => void;
   saved: string[];
   toggleSaved: (id: string, label?: string) => void;
@@ -60,7 +61,10 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [theme, setTheme] = useState<Theme>('light');
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState<LanguageCode>(() => {
+    const stored = localStorage.getItem('atlas_language');
+    return supportedLanguages.includes(stored as LanguageCode) ? stored as LanguageCode : 'en';
+  });
   const [saved, setSaved] = useState<string[]>([]);
   const [savedItems, setSavedItems] = useState<SavedPlace[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -179,8 +183,11 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       isDark,
       language,
       setLanguage: (code: string) => {
-        setLanguage(code);
-        toast({ title: 'Language updated', description: 'Interface language preference saved.', tone: 'success' });
+        const nextLanguage: LanguageCode = supportedLanguages.includes(code as LanguageCode) ? code as LanguageCode : 'en';
+        setLanguage(nextLanguage);
+        localStorage.setItem('atlas_language', nextLanguage);
+        i18n.changeLanguage(nextLanguage);
+        toast({ title: i18n.t('toast.languageUpdated'), description: i18n.t('toast.languageSaved'), tone: 'success' });
       },
       saved,
       toggleSaved,

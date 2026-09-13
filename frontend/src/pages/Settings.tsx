@@ -12,15 +12,10 @@ import { Button, Card, Field, Input, Select } from '../components/ui/Primitives'
 import { useAtlas } from '../contexts/AtlasContext';
 import { languages } from '../data/content';
 import { cn } from '../utils/format';
+import { useTranslation } from 'react-i18next';
 
 const sections = [
-{ id: 'account', label: 'Account', icon: UserRoundIcon },
-{ id: 'security', label: 'Security', icon: LockIcon },
-{ id: 'notifications', label: 'Notifications', icon: BellIcon },
-{ id: 'language', label: 'Language', icon: GlobeIcon },
-{ id: 'appearance', label: 'Appearance', icon: PaletteIcon },
-{ id: 'travel', label: 'Travel Preferences', icon: SlidersHorizontalIcon },
-{ id: 'privacy', label: 'Privacy', icon: ShieldIcon }];
+{ id: 'account', key: 'common.account', icon: UserRoundIcon }, { id: 'security', key: 'common.security', icon: LockIcon }, { id: 'notifications', key: 'common.notifications', icon: BellIcon }, { id: 'language', key: 'common.language', icon: GlobeIcon }, { id: 'appearance', key: 'common.appearance', icon: PaletteIcon }, { id: 'travel', key: 'common.travelPreferences', icon: SlidersHorizontalIcon }, { id: 'privacy', key: 'common.privacy', icon: ShieldIcon }];
 
 
 function Toggle({
@@ -63,7 +58,8 @@ function Toggle({
 }
 
 export function SettingsPage() {
-  const { theme, setTheme, language, setLanguage, toast } = useAtlas();
+  const { theme, setTheme, language, setLanguage, toast, authUser } = useAtlas();
+  const { t } = useTranslation();
   const [active, setActive] = useState('account');
   const [notifications, setNotifications] = useState({
     trip: true,
@@ -76,14 +72,14 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-3xl font-bold text-ink">Settings</h1>
-        <p className="mt-1.5 text-[15px] text-muted">Control your account, appearance, language and privacy.</p>
+        <h1 className="font-display text-3xl font-bold text-ink">{t('pages.settings')}</h1>
+        <p className="mt-1.5 text-[15px] text-muted">{t('settings.description')}</p>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[230px_1fr]">
         <nav aria-label="Settings sections">
           <ul className="space-y-1">
-            {sections.map(({ id, label, icon: Icon }) =>
+            {sections.map(({ id, key, icon: Icon }) =>
             <li key={id}>
                 <button
                 onClick={() => setActive(id)}
@@ -94,7 +90,7 @@ export function SettingsPage() {
                 )}>
                 
                   <Icon className="h-4.5 w-4.5" />
-                  {label}
+                  {t(key)}
                 </button>
               </li>
             )}
@@ -104,15 +100,15 @@ export function SettingsPage() {
         <Card className="p-6">
           {active === 'account' &&
           <div className="space-y-5">
-              <h2 className="text-[15px] font-bold text-ink">Account</h2>
+              <h2 className="text-[15px] font-bold text-ink">{t('common.account')}</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Display name" htmlFor="s-name">
-                  <Input id="s-name" defaultValue="Aarav Explorer" />
+                <Field label={t('settings.displayName')} htmlFor="s-name">
+                  <Input id="s-name" defaultValue={authUser?.name ?? ''} />
                 </Field>
                 <Field label="Email" htmlFor="s-email">
-                  <Input id="s-email" type="email" defaultValue="aarav@atlas.travel" />
+                  <Input id="s-email" type="email" defaultValue={authUser?.email ?? ''} />
                 </Field>
-                <Field label="Home city" htmlFor="s-city">
+                <Field label={t('settings.homeCity')} htmlFor="s-city">
                   <Input id="s-city" defaultValue="Pune, India" />
                 </Field>
                 <Field label="Default currency" htmlFor="s-cur">
@@ -123,18 +119,18 @@ export function SettingsPage() {
                   </Select>
                 </Field>
               </div>
-              <Button onClick={() => toast({ title: 'Account updated', tone: 'success' })}>Save changes</Button>
+              <Button onClick={() => toast({ title: 'Account updated', tone: 'success' })}>{t('common.saveChanges')}</Button>
             </div>
           }
 
           {active === 'security' &&
           <div className="space-y-5">
-              <h2 className="text-[15px] font-bold text-ink">Security</h2>
+              <h2 className="text-[15px] font-bold text-ink">{t('common.security')}</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Current password" htmlFor="s-cp">
+                <Field label={t('settings.currentPassword')} htmlFor="s-cp">
                   <Input id="s-cp" type="password" placeholder="••••••••" />
                 </Field>
-                <Field label="New password" htmlFor="s-np">
+                <Field label={t('settings.newPassword')} htmlFor="s-np">
                   <Input id="s-np" type="password" placeholder="••••••••" />
                 </Field>
               </div>
@@ -146,7 +142,7 @@ export function SettingsPage() {
                 onChange={() => toast({ title: 'Two-factor settings', description: 'Mocked in this prototype.', tone: 'info' })} />
               
               </div>
-              <Button onClick={() => toast({ title: 'Password updated', tone: 'success' })}>Update password</Button>
+              <Button onClick={() => toast({ title: 'Password updated', tone: 'success' })}>{t('settings.updatePassword')}</Button>
             </div>
           }
 
@@ -184,9 +180,9 @@ export function SettingsPage() {
 
           {active === 'language' &&
           <div className="space-y-5">
-              <h2 className="text-[15px] font-bold text-ink">Language</h2>
+              <h2 className="text-[15px] font-bold text-ink">{t('common.language')}</h2>
               <p className="text-[13px] text-muted">
-                ATLAS is built for multilingual travel. Interface strings are localisation-ready.
+                {t('settings.languageDescription')}
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {languages.map((l) =>
@@ -208,7 +204,7 @@ export function SettingsPage() {
 
           {active === 'appearance' &&
           <div className="space-y-5">
-              <h2 className="text-[15px] font-bold text-ink">Appearance</h2>
+              <h2 className="text-[15px] font-bold text-ink">{t('common.appearance')}</h2>
               <div className="grid gap-3 sm:grid-cols-3">
                 {(['light', 'dark', 'system'] as const).map((option) =>
               <button
@@ -234,7 +230,7 @@ export function SettingsPage() {
 
           {active === 'travel' &&
           <div className="space-y-5">
-              <h2 className="text-[15px] font-bold text-ink">Travel Preferences</h2>
+              <h2 className="text-[15px] font-bold text-ink">{t('common.travelPreferences')}</h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Default trip length" htmlFor="s-len">
                   <Select id="s-len" defaultValue="5">
@@ -251,13 +247,13 @@ export function SettingsPage() {
                   </Select>
                 </Field>
               </div>
-              <Button onClick={() => toast({ title: 'Travel defaults saved', tone: 'success' })}>Save defaults</Button>
+              <Button onClick={() => toast({ title: 'Travel defaults saved', tone: 'success' })}>{t('settings.saveDefaults')}</Button>
             </div>
           }
 
           {active === 'privacy' &&
           <div>
-              <h2 className="text-[15px] font-bold text-ink">Privacy</h2>
+              <h2 className="text-[15px] font-bold text-ink">{t('common.privacy')}</h2>
               <div className="mt-3">
                 <Toggle
                 label="Public profile"

@@ -7,6 +7,7 @@ import { HomePage } from './pages/Home';
 import { ExplorePage } from './pages/Explore';
 const PlannerPage = React.lazy(() => import('./pages/Planner').then((module) => ({ default: module.PlannerPage })));
 const ItineraryPage = React.lazy(() => import('./pages/Itinerary').then((module) => ({ default: module.ItineraryPage })));
+const DestinationDetailsPage = React.lazy(() => import('./pages/DestinationDetails').then((module) => ({ default: module.DestinationDetailsPage })));
 const AssistantPage = React.lazy(() => import('./pages/Assistant').then((module) => ({ default: module.AssistantPage })));
 import { TripsPage } from './pages/Trips';
 const BookingsPage = React.lazy(() => import('./pages/Bookings').then((module) => ({ default: module.BookingsPage })));
@@ -20,9 +21,11 @@ import { FoodPage } from './pages/Food';
 import { AuthPage } from './pages/Auth';
 import { AuthCallbackPage } from './pages/AuthCallback';
 import { ActivitiesPage } from './pages/Activities';
+import { useTranslation } from 'react-i18next';
 
 function LoadingSpinner() {
-  return <div className="flex min-h-48 items-center justify-center text-sm text-muted">Loading…</div>;
+  const { t } = useTranslation();
+  return <div className="flex min-h-48 items-center justify-center text-sm text-muted">{t('common.loading')}</div>;
 }
 
 export function App() {
@@ -61,6 +64,7 @@ export function App() {
           {[
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/explore', element: <ExplorePage /> },
+          { path: '/explore/:name', element: <DestinationDetailsPage /> },
           { path: '/plan', element: <PlannerPage /> },
           { path: '/itinerary', element: <ItineraryPage /> },
           { path: '/trips', element: <TripsPage /> },

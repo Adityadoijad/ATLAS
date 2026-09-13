@@ -17,7 +17,7 @@ interface BookingInput {
   image?: string;
 }
 
-const stepLabels = ['Review booking', 'Traveller details', 'Summary', 'Confirmed'];
+const stepLabels = ['Review booking', 'Traveller details', 'Summary', 'Simulation complete'];
 
 function QrPlaceholder({ reference }: {reference: string;}) {
   const cells = Array.from({ length: 64 }).map((_, i) => (reference.charCodeAt(i % reference.length) + i) % 3 === 0);
@@ -40,14 +40,14 @@ export function BookingFlow({
 
 }: {open: boolean;onClose: () => void;item: BookingInput;}) {
   const [step, setStep] = useState(0);
-  const [name, setName] = useState('Aarav Explorer');
-  const [email, setEmail] = useState('aarav@atlas.travel');
-  const [phone, setPhone] = useState('+91 98765 43210');
+  const { addBooking, toast, authUser } = useAtlas();
+  const [name, setName] = useState(authUser?.name ?? '');
+  const [email, setEmail] = useState(authUser?.email ?? '');
+  const [phone, setPhone] = useState('');
   const [idType, setIdType] = useState('Passport');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [booking, setBooking] = useState<Booking | null>(null);
-  const { addBooking, toast } = useAtlas();
 
   const close = () => {
     onClose();
@@ -73,7 +73,7 @@ export function BookingFlow({
     setBooking(created);
     setLoading(false);
     setStep(3);
-    toast({ title: 'Booking confirmed', description: `Reference ${created.reference}`, tone: 'success' });
+    toast({ title: 'Booking simulation saved', description: `Reference ${created.reference} — no real reservation was made.`, tone: 'success' });
   };
 
   return (
@@ -207,18 +207,18 @@ export function BookingFlow({
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10 text-success">
             <CheckCircle2Icon className="h-7 w-7" />
           </span>
-          <h3 className="mt-4 text-xl font-bold text-ink">Booking confirmed</h3>
+          <h3 className="mt-4 text-xl font-bold text-ink">Booking simulation complete</h3>
           <p className="mt-1 text-[13.5px] text-muted">{item.title}</p>
+          <p className="mx-auto mt-3 max-w-sm rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[12.5px] font-medium text-[#92400E] dark:text-warning">
+            This is a booking simulation — no real reservation has been made and no payment was processed.
+          </p>
           <div className="mt-6 rounded-2xl border border-line bg-canvas p-5">
             <QrPlaceholder reference={booking.reference} />
             <p className="mt-4 flex items-center justify-center gap-1.5 font-mono text-[13px] font-semibold text-ink">
               <QrCodeIcon className="h-3.5 w-3.5" /> {booking.reference}
             </p>
-            <p className="mt-1 text-[12.5px] text-muted">Show this code at check-in · {formatDate(booking.date)}</p>
+            <p className="mt-1 text-[12.5px] text-muted">Simulated reference · {formatDate(booking.date)}</p>
           </div>
-          <p className="mt-4 text-[12px] text-muted">
-            This is a demonstration booking. No payment was processed and no reservation was made.
-          </p>
         </motion.div>
       }
     </Modal>);
