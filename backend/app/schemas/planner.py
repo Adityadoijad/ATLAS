@@ -1,6 +1,8 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.validators import coerce_numeric_cost
 
 
 class ActivitySchema(BaseModel):
@@ -8,6 +10,11 @@ class ActivitySchema(BaseModel):
     description: str = Field(min_length=1, max_length=500)
     location: str = Field(min_length=1, max_length=200)
     estimated_cost: float = Field(ge=0)
+
+    @field_validator("estimated_cost", mode="before")
+    @classmethod
+    def _normalize_estimated_cost(cls, value: object) -> object:
+        return coerce_numeric_cost(value)
 
 
 class DayPlanSchema(BaseModel):
@@ -24,6 +31,13 @@ class GeneratedTripPlanSchema(BaseModel):
     end_date: date
     total_budget: float = Field(ge=0)
     days: list[DayPlanSchema] = Field(min_length=1)
+    is_realtime_data: bool = True
+    fallback_reason: str | None = None
+
+    @field_validator("total_budget", mode="before")
+    @classmethod
+    def _normalize_total_budget(cls, value: object) -> object:
+        return coerce_numeric_cost(value)
 
 
 class PlannerRequest(BaseModel):

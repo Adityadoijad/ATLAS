@@ -35,5 +35,12 @@ async def generate_trip_plan(request: PlannerRequest) -> PlannerResult:
     agent_results = await asyncio.gather(*(_run_agent(agent, request) for agent in agents))
     plan = await plan_task
     context = dict(agent_results)
-    context["is_realtime_data"] = all(result.get("is_realtime_data", False) for _, result in agent_results)
+    context["planner"] = (
+        {"is_realtime_data": True}
+        if plan.is_realtime_data
+        else {"is_realtime_data": False, "fallback_reason": plan.fallback_reason}
+    )
+    context["is_realtime_data"] = plan.is_realtime_data and all(
+        result.get("is_realtime_data", False) for _, result in agent_results
+    )
     return PlannerResult(plan=plan, data_context=context)

@@ -10,7 +10,12 @@ from app.models.user import User
 from app.schemas.planner import PlannerRequest
 from app.schemas.trip import TripResponse
 from app.services.planner import PlannerResult, generate_trip_plan
-from app.services.planner_service import PlannerConfigurationError, PlannerGenerationError, PlannerValidationError
+from app.services.planner_service import (
+    PlannerConfigurationError,
+    PlannerGenerationError,
+    PlannerQuotaExceededError,
+    PlannerValidationError,
+)
 
 router = APIRouter(prefix="/trips", tags=["planner"])
 
@@ -26,7 +31,7 @@ async def generate_and_save_trip(
         http_request,
         scope="trip-generate",
         subject=str(current_user.id),
-        limit=5,
+        limit=3,
         window_seconds=60,
     )
     if request.end_date < request.start_date:
@@ -34,6 +39,15 @@ async def generate_and_save_trip(
 
     try:
         generated: PlannerResult = await generate_trip_plan(request)
+    except PlannerQuotaExceededError as exc:
+        # Gemini's own free-tier quota, not ATLAS's rate limiter — a distinct
+        # 429 so the client can tell "you're going too fast" apart from
+        # "the AI provider's daily/per-minute quota is exhausted."
+        raise HTTPException(
+            status_code=429,
+            detail="The AI provider's free-tier quota is exhausted right now. Please try again shortly.",
+            headers={"Retry-After": "60"},
+        ) from exc
     except PlannerConfigurationError as exc:
         raise HTTPException(status_code=503, detail="AI planner is not configured.") from exc
     except PlannerValidationError as exc:

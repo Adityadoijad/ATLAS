@@ -52,7 +52,7 @@ def test_trip_generation_rate_limit(client: TestClient, user_a_token: str, monke
         "destination": "Goa", "start_date": "2026-12-10", "end_date": "2026-12-11",
         "budget": 25000, "travelers": 2, "preferences": {}, "currency": "INR",
     }
-    for _ in range(5):
+    for _ in range(3):
         assert client.post("/api/trips/generate", json=payload, headers=auth(user_a_token)).status_code == 201
     limited = client.post("/api/trips/generate", json=payload, headers=auth(user_a_token))
     assert limited.status_code == 429
