@@ -33,16 +33,20 @@ export function ProfilePage() {
   const [draft, setDraft] = useState(() => buildProfileFromAuthUser(authUser));
   const [preferences, setPreferences] = useState(defaultPreferences);
 
-  // Keep profile in sync if authUser loads after initial render (e.g. on refresh)
+  // Re-sync whenever the signed-in account changes (authUser loading in after
+  // first render, or switching accounts via Google sign-in). Name and email are
+  // owned by the server, so they always take the authenticated user's values —
+  // a `prev.x || authUser.x` guard here would pin the first account's details
+  // and never show the new one. Local-only fields reset since they belonged to
+  // the previous account.
   useEffect(() => {
-    if (authUser) {
-      setProfile((prev) => ({
-        ...prev,
-        fullName: prev.fullName || authUser.name,
-        email: prev.email || authUser.email
-      }));
-    }
-  }, [authUser]);
+    const synced = buildProfileFromAuthUser(authUser);
+    setProfile(synced);
+    if (!editing) setDraft(synced);
+    // Keyed on identity, not object reference, so unrelated re-renders don't
+    // clobber in-progress edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id]);
 
   const save = () => {
     if (!draft.fullName.trim() || !/^\S+@\S+\.\S+$/.test(draft.email)) {
