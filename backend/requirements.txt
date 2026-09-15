@@ -11,7 +11,7 @@ pyjwt
 pytest
 pytest-asyncio
 httpx
-google-generativeai
+groq
 python-dotenv
 python-multipart
 authlib[client]

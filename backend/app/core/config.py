@@ -10,7 +10,10 @@ load_dotenv()
 
 class Settings:
     MIN_JWT_SECRET_BYTES = 32
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    # AI provider (Groq). Model is configurable so it is never hardcoded at
+    # call sites — see app/services/ai_service.py.
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "")
     OPENTRIPMAP_API_KEY: str = os.getenv("OPENTRIPMAP_API_KEY", "")
     FOURSQUARE_API_KEY: str = os.getenv("FOURSQUARE_API_KEY", "")
