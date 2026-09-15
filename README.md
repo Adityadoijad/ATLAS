@@ -98,9 +98,30 @@ The architecture is designed so that each specialized agent focuses on a particu
 
 ### AI
 
-* Large Language Model
+* **Groq** — LLM inference provider (OpenAI-compatible chat completions)
+* **Model:** `openai/gpt-oss-120b` (open-weight), configurable via `GROQ_MODEL`
 * Multi-Agent Architecture
 * AI-based planning and decision making
+
+All LLM calls are centralized in `backend/app/services/ai_service.py` — agents
+never call the provider SDK directly, so swapping providers is a change to
+that one module.
+
+**Required environment variables** (`backend/.env`, copy from `.env.example`):
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+Get a free key (no card required) at <https://console.groq.com/keys>. To list
+the models your account can actually use:
+
+```bash
+curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+```
+
+Never commit real API keys — `.env` is gitignored.
 
 ### Database
 

@@ -410,7 +410,7 @@ async function generateMockTripPlan(prefs: PlannerPreferences): Promise<TripPlan
   };
 }
 
-/** POST /assistant/message  → POST /api/chat (FastAPI + Gemini) */
+/** POST /assistant/message  → POST /api/chat (FastAPI + Groq) */
 interface GeneratedItineraryDay {
   day_number: number;
   date: string;

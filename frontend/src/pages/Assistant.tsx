@@ -318,7 +318,7 @@ export function AssistantPage() {
               </button>
             </form>
             <p className="mt-2 text-center text-[11.5px] text-muted">
-              ATLAS AI is powered by Gemini · Suggestions are not confirmed bookings
+              ATLAS AI is powered by Groq · Suggestions are not confirmed bookings
             </p>
           </div>
         </div>

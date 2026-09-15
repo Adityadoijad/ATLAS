@@ -4,7 +4,7 @@
  * Safely renders Markdown content with ATLAS-styled formatting.
  * Supports GitHub-flavored Markdown including tables.
  * 
- * Used for rendering Gemini AI responses that contain:
+ * Used for rendering AI assistant responses that contain:
  * - Headings
  * - Bold/italic text
  * - Lists (bullet and numbered)
