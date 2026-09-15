@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from app.schemas.planner import GeneratedTripPlanSchema, PlannerRequest
 from app.services.agents import FoodAgent, HotelAgent, RouteAgent, WeatherAgent
-from app.services.planner_service import generate_trip_plan as generate_gemini_trip_plan
+from app.services.planner_service import generate_trip_plan as generate_ai_trip_plan
 
 
 @dataclass
@@ -31,7 +31,7 @@ async def _run_agent(agent: object, request: PlannerRequest) -> tuple[str, dict[
 
 async def generate_trip_plan(request: PlannerRequest) -> PlannerResult:
     agents = [RouteAgent(), HotelAgent(), FoodAgent(), WeatherAgent()]
-    plan_task = asyncio.create_task(generate_gemini_trip_plan(request))
+    plan_task = asyncio.create_task(generate_ai_trip_plan(request))
     agent_results = await asyncio.gather(*(_run_agent(agent, request) for agent in agents))
     plan = await plan_task
     context = dict(agent_results)

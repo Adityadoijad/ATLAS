@@ -1,6 +1,6 @@
 """
 ATLAS AI System Instruction.
-Defines how Gemini should behave as the ATLAS Travel Assistant.
+Defines how the AI model should behave as the ATLAS Travel Assistant.
 """
 
 ATLAS_SYSTEM_INSTRUCTION = """

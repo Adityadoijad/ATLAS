@@ -40,7 +40,7 @@ async def generate_and_save_trip(
     try:
         generated: PlannerResult = await generate_trip_plan(request)
     except PlannerQuotaExceededError as exc:
-        # Gemini's own free-tier quota, not ATLAS's rate limiter — a distinct
+        # The AI provider's own quota, not ATLAS's rate limiter — a distinct
         # 429 so the client can tell "you're going too fast" apart from
         # "the AI provider's daily/per-minute quota is exhausted."
         raise HTTPException(

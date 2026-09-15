@@ -1,23 +1,26 @@
 """AI-generated ("Discover more") destination suggestions — on-demand, real
-Gemini calls, distinct from the fast catalog-based recommendations in
+AI calls, distinct from the fast catalog-based recommendations in
 recommendations.py. Slower and quota-bound like the trip planner, so this is
 opt-in behind its own endpoint rather than loaded automatically on every page
 view.
 
-No silent fallback: if Gemini can't produce valid suggestions, this raises
+No silent fallback: if the model can't produce valid suggestions, this raises
 rather than fabricating fake "AI discoveries" — matching the same honesty
 requirement enforced in planner_service.py.
 """
 import asyncio
-import json
 import logging
-from typing import Any
 
 from pydantic import ValidationError
 
-from app.core.config import settings
 from app.models.user import User
 from app.schemas.recommendations import DiscoveredDestinationSchema
+from app.services.ai_service import (
+    AIConfigurationError,
+    AIQuotaExceededError,
+    extract_json,
+    generate,
+)
 from app.services.recommendations import CATALOG, _build_tag_profile
 
 logger = logging.getLogger(__name__)
@@ -39,17 +42,13 @@ def _profile_summary(user: User) -> str:
     return f"This traveller's interests, most to least frequent: {', '.join(top_tags)}."
 
 
-def _generate_sync(user: User) -> list[DiscoveredDestinationSchema]:
-    try:
-        import google.generativeai as genai
-    except ImportError as exc:
-        raise DiscoveryConfigurationError("The Gemini SDK is not installed.") from exc
-    if not settings.GEMINI_API_KEY:
-        raise DiscoveryConfigurationError("GEMINI_API_KEY is not set.")
-
+async def _generate_once(user: User) -> list[DiscoveredDestinationSchema]:
     exclude_names = ", ".join(str(item["name"]) for item in CATALOG)
+    # JSON mode guarantees an object at the root, so the array is requested
+    # under a single key and unwrapped below.
     prompt = f"""Suggest exactly 3 real, existing travel destinations for a traveller
-booking from India, as a JSON array (JSON array only, no surrounding object).
+booking from India, as JSON. Return an object with a single key "destinations"
+whose value is an array of exactly 3 items.
 
 {_profile_summary(user)}
 
@@ -66,19 +65,24 @@ Each array item must have exactly these fields:
 - best_season (string, e.g. "Oct – Mar")
 - duration_days (integer)
 """
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name="gemini-3.6-flash",
-        generation_config={"response_mime_type": "application/json"},
-    )
-    response: Any = model.generate_content(prompt)
     try:
-        data = json.loads(response.text)
+        raw = await generate(prompt, json_mode=True, max_tokens=2000)
+    except AIConfigurationError as exc:
+        raise DiscoveryConfigurationError(str(exc)) from exc
+    except AIQuotaExceededError as exc:
+        raise DiscoveryGenerationError(str(exc)) from exc
+
+    try:
+        data = extract_json(raw)
+        # Accept either the requested {"destinations": [...]} wrapper or a
+        # bare array, so a well-formed response isn't rejected on shape alone.
+        if isinstance(data, dict):
+            data = next((v for v in data.values() if isinstance(v, list)), None)
         if not isinstance(data, list):
-            raise ValueError("Expected a JSON array of destinations.")
+            raise ValueError("Expected an array of destinations.")
         return [DiscoveredDestinationSchema.model_validate(item) for item in data]
     except (ValidationError, ValueError, TypeError) as exc:
-        logger.warning("Discovery response failed schema validation. Raw response: %s", response.text[:2000])
+        logger.warning("Discovery response failed schema validation. Raw response: %s", raw[:2000])
         raise DiscoveryGenerationError("AI returned suggestions that didn't match the required format.") from exc
 
 
@@ -88,7 +92,7 @@ async def generate_discoveries(user: User) -> list[DiscoveredDestinationSchema]:
     last_error: Exception | None = None
     for attempt in range(2):
         try:
-            return await asyncio.to_thread(_generate_sync, user)
+            return await _generate_once(user)
         except DiscoveryConfigurationError:
             raise
         except DiscoveryGenerationError as exc:
