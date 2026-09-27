@@ -64,7 +64,7 @@ def test_discover_maps_configuration_error_to_503(client: TestClient, user_a_tok
     from app.services.discover_service import DiscoveryConfigurationError
 
     async def failing_generate(_user):
-        raise DiscoveryConfigurationError("GEMINI_API_KEY is not set.")
+        raise DiscoveryConfigurationError("GROQ_API_KEY is not set.")
 
     monkeypatch.setattr("app.api.routes.recommendations.generate_discoveries", failing_generate)
 

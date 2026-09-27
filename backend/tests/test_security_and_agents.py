@@ -30,7 +30,7 @@ def test_sub_agent_failure_returns_fallback_context(monkeypatch) -> None:
     )
     plan = GeneratedTripPlanSchema(
         title="Goa", destination="Goa", start_date=request.start_date, end_date=request.end_date, total_budget=1000,
-        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000)])],
+        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000, category="accommodation")])],
     )
 
     async def successful_agent(*_: object) -> dict[str, object]:
@@ -39,10 +39,10 @@ def test_sub_agent_failure_returns_fallback_context(monkeypatch) -> None:
     async def failed_agent(*_: object) -> dict[str, object]:
         raise TimeoutError("simulated provider timeout")
 
-    async def fake_gemini(_: PlannerRequest) -> GeneratedTripPlanSchema:
+    async def fake_ai(_: PlannerRequest) -> GeneratedTripPlanSchema:
         return plan
 
-    monkeypatch.setattr(planner, "generate_gemini_trip_plan", fake_gemini)
+    monkeypatch.setattr(planner, "generate_ai_trip_plan", fake_ai)
     monkeypatch.setattr(planner.RouteAgent, "run", successful_agent)
     monkeypatch.setattr(planner.HotelAgent, "run", successful_agent)
     monkeypatch.setattr(planner.FoodAgent, "run", successful_agent)
@@ -54,27 +54,27 @@ def test_sub_agent_failure_returns_fallback_context(monkeypatch) -> None:
     assert "TimeoutError" in result.data_context["weather"]["fallback_reason"]
 
 
-def test_gemini_generation_retries_transient_failures(monkeypatch) -> None:
+def test_ai_generation_retries_transient_failures(monkeypatch) -> None:
     request = PlannerRequest(
         destination="Goa", start_date=date(2026, 12, 10), end_date=date(2026, 12, 10), budget=1000,
     )
     plan = GeneratedTripPlanSchema(
         title="Goa", destination="Goa", start_date=request.start_date, end_date=request.end_date, total_budget=1000,
-        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000)])],
+        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000, category="accommodation")])],
     )
     attempts = 0
 
-    def flaky_generation(_: PlannerRequest) -> GeneratedTripPlanSchema:
+    async def flaky_generation(request_arg: PlannerRequest) -> GeneratedTripPlanSchema:
         nonlocal attempts
         attempts += 1
         if attempts < 3:
-            raise ConnectionError("simulated Gemini rate limit")
+            raise ConnectionError("simulated provider transient failure")
         return plan
 
     async def immediate_sleep(_: float) -> None:
         return None
 
-    monkeypatch.setattr(planner_service, "_generate_plan_sync", flaky_generation)
+    monkeypatch.setattr(planner_service, "_generate_plan_once", flaky_generation)
     monkeypatch.setattr(planner_service.asyncio, "sleep", immediate_sleep)
     assert asyncio.run(planner_service.generate_trip_plan(request)) == plan
     assert attempts == 3

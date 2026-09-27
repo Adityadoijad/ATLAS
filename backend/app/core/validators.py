@@ -1,5 +1,5 @@
 """Shared Pydantic field-normalization helpers used across schemas that accept
-Gemini-generated numeric fields (which occasionally arrive currency-formatted,
+AI-generated numeric fields (which occasionally arrive currency-formatted,
 e.g. "₹3,500" or "3500 INR" instead of a plain number)."""
 import re
 

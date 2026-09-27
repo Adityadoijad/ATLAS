@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRightIcon,
@@ -7,6 +7,7 @@ import {
   ClockIcon,
   CloudSunIcon,
   HeartIcon,
+  ImageOffIcon,
   MapPinIcon,
   QuoteIcon,
   SparklesIcon,
@@ -17,6 +18,7 @@ import {
 import { Activity, Booking, LostFoundItem, Restaurant, SavedPlace, Trip } from '../../types';
 import { Badge, Button, Card } from '../ui/Primitives';
 import { cn, formatDate, formatRange, inr } from '../../utils/format';
+import { downloadBookingTicket } from '../../services/atlasApi';
 import { useAtlas } from '../../contexts/AtlasContext';
 
 export function StatsCard({
@@ -244,6 +246,27 @@ export function BookingCard({
 
 }: {booking: Booking;onView: () => void;onCancel: () => void;}) {
   const { toast } = useAtlas();
+  const [downloading, setDownloading] = useState(false);
+
+  // Only a persisted booking has a server record to issue a ticket from.
+  const canDownload = Boolean(booking.persisted);
+
+  const downloadTicket = async () => {
+    const token = localStorage.getItem('atlas_access_token');
+    if (!token) return;
+    setDownloading(true);
+    try {
+      await downloadBookingTicket(booking.id, token);
+    } catch (reason) {
+      toast({
+        title: 'Could not generate the E-Ticket',
+        description: reason instanceof Error ? reason.message : 'Please try again.',
+        tone: 'error'
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
   const tone = booking.status === 'upcoming' ? 'brand' : booking.status === 'completed' ? 'success' : 'danger';
   return (
     <Card className="overflow-hidden">
@@ -265,13 +288,16 @@ export function BookingCard({
             <Button size="sm" variant="secondary" onClick={onView}>
               View Details
             </Button>
+            {canDownload &&
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => toast({ title: 'Confirmation downloaded', description: `${booking.reference}.pdf`, tone: 'success' })}>
-              
-              Download
-            </Button>
+              loading={downloading}
+              onClick={downloadTicket}>
+
+                Download E-Ticket
+              </Button>
+            }
             {booking.status === 'upcoming' &&
             <Button size="sm" variant="danger" onClick={onCancel}>
                 Cancel
@@ -401,7 +427,20 @@ export function LostFoundCard({ item, onContact }: {item: LostFoundItem;onContac
   return (
     <Card className="flex h-full flex-col overflow-hidden">
       <div className="relative h-36">
-        <img src={item.image} alt="" className="h-full w-full object-cover" />
+        {item.image ?
+        <img
+          src={item.image}
+          alt={item.isRepresentative ? `Representative photo of a ${item.title.toLowerCase()}` : item.title}
+          loading="lazy"
+          className="h-full w-full object-cover" /> :
+
+        // No photo was attached. A category placeholder makes that obvious;
+        // a stand-in picture of some other object would invite false matches.
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-brand/10 to-accent/10">
+            <ImageOffIcon className="h-5 w-5 text-muted" />
+            <span className="text-[11px] font-medium text-muted">{item.category} · no photo</span>
+          </div>
+        }
         <span
           className={cn(
             'absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white',
@@ -410,6 +449,30 @@ export function LostFoundCard({ item, onContact }: {item: LostFoundItem;onContac
           
           {item.type === 'lost' ? 'Lost' : 'Found'}
         </span>
+        {/* Says plainly that this is not a photo of the actual item, so nobody
+            "recognises" a stock image as their own property. */}
+        {item.image && item.isRepresentative &&
+        <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+            Representative image
+          </span>
+        }
+        {/* CC-licensed photos must credit their author. */}
+        {item.imageCredit && (item.imageCredit.author || item.imageCredit.license) &&
+        <div className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-2.5 py-1 text-[9px] text-white/80 backdrop-blur-sm">
+            {item.imageCredit.sourceUrl ?
+          <a
+            href={item.imageCredit.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white">
+
+                {[item.imageCredit.author, item.imageCredit.license].filter(Boolean).join(' · ')}
+              </a> :
+
+          [item.imageCredit.author, item.imageCredit.license].filter(Boolean).join(' · ')
+          }
+          </div>
+        }
       </div>
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">

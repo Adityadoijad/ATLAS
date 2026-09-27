@@ -98,9 +98,30 @@ The architecture is designed so that each specialized agent focuses on a particu
 
 ### AI
 
-* Large Language Model
+* **Groq** — LLM inference provider (OpenAI-compatible chat completions)
+* **Model:** `openai/gpt-oss-120b` (open-weight), configurable via `GROQ_MODEL`
 * Multi-Agent Architecture
 * AI-based planning and decision making
+
+All LLM calls are centralized in `backend/app/services/ai_service.py` — agents
+never call the provider SDK directly, so swapping providers is a change to
+that one module.
+
+**Required environment variables** (`backend/.env`, copy from `.env.example`):
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+Get a free key (no card required) at <https://console.groq.com/keys>. To list
+the models your account can actually use:
+
+```bash
+curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"
+```
+
+Never commit real API keys — `.env` is gitignored.
 
 ### Database
 
@@ -108,12 +129,49 @@ The architecture is designed so that each specialized agent focuses on a particu
 
 ### External Services
 
-Planned integrations include:
+All external calls are made server-side from FastAPI. No third-party service
+URL or credential is ever exposed to the React app.
 
-* Maps API
-* Weather API
-* Tourism/travel data
-* Community/review data
+| Data | Provider | Cost | API key |
+| --- | --- | --- | --- |
+| Geocoding | OpenStreetMap / Nominatim | Free | Not required |
+| Food places | OpenStreetMap / Overpass | Free | **Not required** |
+| Weather | OpenWeatherMap | Free tier | `OPENWEATHER_API_KEY` |
+| Attractions | OpenTripMap | Free tier | `OPENTRIPMAP_API_KEY` |
+| Destination photos | Wikimedia | Free | Not required |
+
+#### Food data (OpenStreetMap / Overpass)
+
+* **Endpoint:** `https://overpass-api.de/api/interpreter` (POST, Overpass QL)
+* **Cost:** free. **No API key** is required for ordinary map-data queries, so
+  there is deliberately no `OVERPASS_API_KEY` setting.
+* **Data returned:** restaurants, cafes, fast food, food courts, bakeries and
+  ice cream shops (pubs and bars only when the traveller asks for nightlife),
+  with coordinates plus whatever OSM has been tagged with — cuisine, address,
+  phone, website and opening hours.
+
+**What "live food data" means here.** It means *current OpenStreetMap-listed
+place information*. It does **not** mean real-time table availability, and it
+does **not** mean menu pricing:
+
+* **Place information** (name, cuisine, contact, opening hours) — live OSM data.
+* **Meal cost** — an AI estimate. OSM publishes no reliable prices, so costs are
+  never presented as live, even when the place data is.
+
+**Limitations.** OSM coverage is uneven; a venue may exist with nothing but a
+name, and missing tags are returned as `null` rather than filled in. Opening
+hours are as last edited by a contributor, not a live status.
+
+**Usage policy.** The public Overpass servers are donated shared infrastructure
+with usage limits. ATLAS caches results per area for 20 minutes, collapses
+concurrent requests for the same area into one call, sends an identifying
+User-Agent, and never retries a rate-limited (HTTP 429/504) response — it falls
+back to estimates instead.
+
+**Attribution.** OSM data is licensed under the
+[ODbL](https://www.openstreetmap.org/copyright). Anywhere ATLAS shows this data
+it displays "Food place data © OpenStreetMap contributors", linking to the
+copyright page. Do not remove that attribution.
 
 ---
 

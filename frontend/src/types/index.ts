@@ -36,7 +36,39 @@ export interface DiscoveredDestination {
   budgetFrom: number;
   bestSeason: string;
   durationDays: number;
+  /** Real photo of the place from Wikimedia; undefined when none was found. */
+  imageUrl?: string;
 }
+
+/** Attribution metadata for a Wikimedia-sourced image. All fields nullable. */
+export interface ImageAttribution {
+  url: string | null;
+  source: string | null;
+  source_url: string | null;
+  author: string | null;
+  license: string | null;
+}
+
+/**
+ * A fully-enriched India recommendation from the backend.
+ * - Groq provides: name, state, description, reason, tags
+ * - Nominatim provides: latitude, longitude (coordinates are NEVER from Groq)
+ * - Wikimedia provides: image (URL is NEVER from Groq)
+ */
+export interface DiscoverIndiaRecommendation {
+  name: string;
+  state: string;
+  country: string;
+  full_name: string;        // e.g. "Majuli, Assam, India"
+  description: string;
+  reason: string;
+  tags: string[];
+  latitude: number;
+  longitude: number;
+  image: ImageAttribution;
+  is_fallback?: boolean;
+}
+
 
 export interface WeatherForecastEntry {
   timestamp: string;
@@ -60,8 +92,16 @@ export interface DestinationWeather {
 export interface RealPlace {
   name: string;
   category: string | null;
+  /**
+   * OpenStreetMap food places carry these; OpenTripMap attractions do not.
+   * Null means OSM has no such tag — render nothing rather than a placeholder.
+   */
+  cuisine: string | null;
   rating: number | null;
   address: string | null;
+  phone: string | null;
+  website: string | null;
+  openingHours: string | null;
   latitude: number | null;
   longitude: number | null;
   source: string;
@@ -135,6 +175,20 @@ export interface Booking {
   price: number;
   status: BookingStatus;
   travelers: number;
+  /**
+   * True when the booking exists server-side and can therefore issue an
+   * e-ticket. Seeded demo bookings and signed-out bookings have no server
+   * record, so no ticket is offered for them.
+   */
+  persisted?: boolean;
+}
+
+/** Credit for a photo ATLAS did not take. Required by the CC licences the
+ *  seeded item photos are published under. */
+export interface ImageCredit {
+  author?: string;
+  license?: string;
+  sourceUrl?: string;
 }
 
 export interface LostFoundItem {
@@ -145,7 +199,15 @@ export interface LostFoundItem {
   location: string;
   date: string;
   description: string;
+  /** Empty when nobody attached a photo — the card shows a category placeholder. */
   image: string;
+  imageCredit?: ImageCredit;
+  /**
+   * True when the photo shows this *kind* of item rather than the actual one.
+   * Labelled in the UI, because on a lost-and-found board someone could
+   * otherwise recognise a stock photo as their own property.
+   */
+  isRepresentative?: boolean;
   status: 'Open' | 'Matched' | 'Resolved';
   contact: string;
 }
@@ -242,12 +304,29 @@ export interface ChatCard {
   price?: number;
 }
 
+/**
+ * Structured summary the backend attaches when the assistant has produced a
+ * complete itinerary. Its presence is what gates the "Proceed to Booking"
+ * CTA — the frontend never infers a finished plan from the reply's wording.
+ */
+export interface AssistantPlan {
+  title: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  travelers: number;
+  estimatedCost: number;
+  currency: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   time: string;
   cards?: ChatCard[];
+  /** Set only on a reply that completed a full trip plan. */
+  plan?: AssistantPlan;
 }
 
 export interface Conversation {

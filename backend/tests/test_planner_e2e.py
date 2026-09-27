@@ -10,7 +10,7 @@ from app.schemas.planner import ActivitySchema, DayPlanSchema, GeneratedTripPlan
 from app.services import planner
 
 
-async def fake_gemini_plan(_: object) -> GeneratedTripPlanSchema:
+async def fake_ai_plan(_: object) -> GeneratedTripPlanSchema:
     return GeneratedTripPlanSchema(
         title="Fallback-safe Goa trip",
         destination="Goa",
@@ -28,6 +28,7 @@ async def fake_gemini_plan(_: object) -> GeneratedTripPlanSchema:
                         description="Explore local highlights",
                         location="Goa",
                         estimated_cost=0,
+                        category="activity",
                     )
                 ],
             )
@@ -46,7 +47,7 @@ def test_trip_generation_persists_when_realtime_agents_timeout(
     user_a_token: str,
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(planner, "generate_gemini_trip_plan", fake_gemini_plan)
+    monkeypatch.setattr(planner, "generate_ai_trip_plan", fake_ai_plan)
     for agent in (planner.RouteAgent, planner.HotelAgent, planner.FoodAgent, planner.WeatherAgent):
         monkeypatch.setattr(agent, "run", slow_agent)
 

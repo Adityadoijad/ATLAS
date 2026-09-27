@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CalendarCheckIcon, PlusIcon } from 'lucide-react';
 import { BookingCard } from '../components/cards/ContentCards';
-import { BookingFlow } from '../components/booking/BookingFlow';
+import { BookingFlow, BookingInput } from '../components/booking/BookingFlow';
+import { BOOKING_DRAFT_STATE_KEY, parseBookingDraft } from '../components/booking/bookingHandoff';
 import { Badge, Button, Card, EmptyState, Tabs } from '../components/ui/Primitives';
 import { Modal } from '../components/ui/Overlays';
 import { useAtlas } from '../contexts/AtlasContext';
@@ -9,12 +11,48 @@ import { Booking } from '../types';
 import { IMAGES } from '../data/destinations';
 import { formatDate, inr } from '../utils/format';
 
+// The demo item behind "New mock booking", unchanged.
+const SAMPLE_BOOKING: BookingInput = {
+  title: 'Jaipur · Heritage Weekend',
+  type: 'Package',
+  date: '2026-10-09',
+  price: 32400,
+  travelers: 2,
+  image: IMAGES.jaipur
+};
+
 export function BookingsPage() {
-  const { bookings, cancelBooking } = useAtlas();
+  const { bookings, cancelBooking, toast } = useAtlas();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [draft, setDraft] = useState<BookingInput | null>(null);
   const [tab, setTab] = useState('all');
   const [details, setDetails] = useState<Booking | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [newBooking, setNewBooking] = useState(false);
+
+  // A plan handed over from the Assistant opens the existing flow prefilled.
+  // Nothing is booked here — BookingFlow still starts on its review step and
+  // the user confirms there.
+  useEffect(() => {
+    const state = location.state as Record<string, unknown> | null;
+    if (!state || !(BOOKING_DRAFT_STATE_KEY in state)) return;
+
+    const incoming = parseBookingDraft(state[BOOKING_DRAFT_STATE_KEY]);
+    if (incoming) {
+      setDraft(incoming);
+    } else {
+      // Malformed context (hand-edited history, stale tab). Say so and leave
+      // the user on a working bookings page rather than failing silently.
+      toast({
+        title: 'Could not prefill that trip',
+        description: 'Start a booking below instead.',
+        tone: 'info'
+      });
+    }
+    // Replace the history entry so a refresh or Back does not reopen the modal.
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate, toast]);
 
   const filtered = tab === 'all' ? bookings : bookings.filter((b) => b.status === tab);
   const totalValue = bookings.filter((b) => b.status !== 'cancelled').reduce((sum, b) => sum + b.price, 0);
@@ -129,16 +167,12 @@ export function BookingsPage() {
       </Modal>
 
       <BookingFlow
-        open={newBooking}
-        onClose={() => setNewBooking(false)}
-        item={{
-          title: 'Jaipur · Heritage Weekend',
-          type: 'Package',
-          date: '2026-10-09',
-          price: 32400,
-          travelers: 2,
-          image: IMAGES.jaipur
-        }} />
+        open={newBooking || draft !== null}
+        onClose={() => {
+          setNewBooking(false);
+          setDraft(null);
+        }}
+        item={draft ?? SAMPLE_BOOKING} />
       
     </div>);
 

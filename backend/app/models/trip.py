@@ -18,6 +18,12 @@ class Trip(Base):
     preferences = Column(JSON, nullable=False, default=dict)
     currency = Column(String, default="USD", nullable=False)
     status = Column(String, default="planning", nullable=False)
+    # Per-agent live/estimated flags captured when the plan was generated.
+    # Persisted so an e-ticket issued later can state which parts were live
+    # data and which were AI estimates instead of guessing after the fact.
+    # Null on trips created before this was recorded — the ticket omits the
+    # section rather than inventing it.
+    data_context = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

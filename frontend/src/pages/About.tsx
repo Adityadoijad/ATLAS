@@ -9,7 +9,7 @@ const stack = [
 { label: 'Frontend', value: 'React · TypeScript · Tailwind CSS · Framer Motion' },
 { label: 'Planned backend', value: 'FastAPI service layer with typed endpoints' },
 { label: 'Data', value: 'Supabase PostgreSQL for trips, bookings and community reports' },
-{ label: 'Intelligence', value: 'Gemini API for reasoning and natural-language planning' },
+{ label: 'Intelligence', value: 'Groq (open-weight LLM) for reasoning and natural-language planning' },
 { label: 'Context APIs', value: 'Maps, Weather and traveller review sources' }];
 
 

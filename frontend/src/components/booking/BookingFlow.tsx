@@ -1,20 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2Icon, QrCodeIcon } from 'lucide-react';
+import { AlertTriangleIcon, CheckCircle2Icon, DownloadIcon, MailIcon, QrCodeIcon } from 'lucide-react';
 import { Modal } from '../ui/Overlays';
 import { Button, Field, Input, Select } from '../ui/Primitives';
-import { createBooking } from '../../services/atlasApi';
+import {
+  createBooking,
+  downloadBookingTicket,
+  emailBookingConfirmation,
+  fetchEmailCapability } from
+'../../services/atlasApi';
 import { useAtlas } from '../../contexts/AtlasContext';
 import { Booking } from '../../types';
 import { cn, formatDate, inr } from '../../utils/format';
 
-interface BookingInput {
+/**
+ * The existing booking data model. Exported so other surfaces (the Assistant's
+ * booking hand-off) can prefill this flow instead of defining a second
+ * booking shape.
+ */
+export interface BookingInput {
   title: string;
   type: Booking['type'];
   date: string;
   price: number;
   travelers: number;
   image?: string;
+  /** Links the booking to a persisted trip so the e-ticket can print its itinerary. */
+  tripId?: string;
 }
 
 const stepLabels = ['Review booking', 'Traveller details', 'Summary', 'Simulation complete'];
@@ -48,12 +60,28 @@ export function BookingFlow({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  // Email state is tracked separately from the booking on purpose: a failed
+  // send must never read as a failed booking.
+  const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailAvailable, setEmailAvailable] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('atlas_access_token');
+    if (!open || !token) return;
+    // Asked once per opening so the action is hidden entirely on a deployment
+    // with no mail configured.
+    fetchEmailCapability(token).then(setEmailAvailable);
+  }, [open]);
 
   const close = () => {
     onClose();
     window.setTimeout(() => {
       setStep(0);
       setBooking(null);
+      setEmailState('idle');
+      setEmailMessage('');
     }, 250);
   };
 
@@ -68,12 +96,63 @@ export function BookingFlow({
 
   const confirm = async () => {
     setLoading(true);
-    const created = await createBooking(item);
-    addBooking(created);
-    setBooking(created);
-    setLoading(false);
-    setStep(3);
-    toast({ title: 'Booking simulation saved', description: `Reference ${created.reference} — no real reservation was made.`, tone: 'success' });
+    try {
+      const created = await createBooking({
+        ...item,
+        // Captured here so the e-ticket can name the lead traveller instead of
+        // leaving the section blank.
+        leadTravelerName: name.trim(),
+        leadTravelerEmail: email.trim(),
+        leadTravelerPhone: phone.trim(),
+        idDocumentType: idType
+      });
+      addBooking(created);
+      setBooking(created);
+      setStep(3);
+      toast({ title: 'Booking simulation saved', description: `Reference ${created.reference} — no real reservation was made.`, tone: 'success' });
+    } catch (reason) {
+      toast({
+        title: 'Could not save the booking',
+        description: reason instanceof Error ? reason.message : 'Please try again.',
+        tone: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendConfirmationEmail = async () => {
+    const token = localStorage.getItem('atlas_access_token');
+    if (!booking || !token) return;
+    setEmailState('sending');
+    try {
+      const result = await emailBookingConfirmation(booking.id, token);
+      setEmailState('sent');
+      setEmailMessage(result.recipient);
+    } catch (reason) {
+      // Only the email failed. The booking above stays confirmed and the PDF
+      // stays downloadable, so this is reported as its own status rather than
+      // as an error on the booking.
+      setEmailState('failed');
+      setEmailMessage(reason instanceof Error ? reason.message : 'The confirmation email could not be sent.');
+    }
+  };
+
+  const downloadTicket = async () => {
+    const token = localStorage.getItem('atlas_access_token');
+    if (!booking || !token) return;
+    setDownloading(true);
+    try {
+      await downloadBookingTicket(booking.id, token);
+    } catch (reason) {
+      toast({
+        title: 'Could not generate the E-Ticket',
+        description: reason instanceof Error ? reason.message : 'Please try again.',
+        tone: 'error'
+      });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -109,12 +188,18 @@ export function BookingFlow({
           </> :
 
       <>
-            <Button
+            {/* Only offered for a persisted booking — a signed-out demo
+                booking has no server record to issue a ticket from. */}
+            {booking?.persisted &&
+        <Button
           variant="secondary"
-          onClick={() => toast({ title: 'Confirmation downloaded', description: `${booking?.reference}.pdf`, tone: 'success' })}>
-          
-              Download confirmation
-            </Button>
+          loading={downloading}
+          icon={<DownloadIcon className="h-4 w-4" />}
+          onClick={downloadTicket}>
+
+                Download E-Ticket PDF
+              </Button>
+        }
             <Button onClick={close}>Done</Button>
           </>
 
@@ -219,6 +304,47 @@ export function BookingFlow({
             </p>
             <p className="mt-1 text-[12.5px] text-muted">Simulated reference · {formatDate(booking.date)}</p>
           </div>
+
+          {/* Email status, reported separately from the booking above so a
+              delivery failure never reads as a booking failure. */}
+          {booking.persisted && emailAvailable &&
+        <div className="mt-5 text-left">
+              {emailState === 'sent' ?
+          <p className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 px-3.5 py-3 text-[13px] font-medium text-success">
+                  <CheckCircle2Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>Confirmation email sent to your registered address ({emailMessage}).</span>
+                </p> :
+          emailState === 'failed' ?
+          <div className="rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-3">
+                  <p className="flex items-start gap-2 text-[13px] font-semibold text-[#92400E] dark:text-warning">
+                    <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Confirmation email could not be sent.</span>
+                  </p>
+                  <p className="mt-1 pl-6 text-[12.5px] text-[#92400E] dark:text-warning">
+                    Your booking is still confirmed — download the PDF instead.
+                  </p>
+                  <Button
+              className="ml-6 mt-2.5"
+              size="sm"
+              variant="outline"
+              onClick={sendConfirmationEmail}>
+
+                    Try again
+                  </Button>
+                </div> :
+
+          <Button
+            variant="outline"
+            size="sm"
+            loading={emailState === 'sending'}
+            icon={<MailIcon className="h-4 w-4" />}
+            onClick={sendConfirmationEmail}>
+
+                  Email Confirmation
+                </Button>
+          }
+            </div>
+        }
         </motion.div>
       }
     </Modal>);

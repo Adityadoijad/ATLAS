@@ -1,6 +1,6 @@
 # ATLAS — Copilot Instructions
 
-ATLAS is an AI-powered travel planning platform: React/TypeScript/Vite frontend, FastAPI/Python backend, PostgreSQL database, Google Gemini for AI trip generation, plus OpenWeatherMap/OpenTripMap/Foursquare for real destination data.
+ATLAS is an AI-powered travel planning platform: React/TypeScript/Vite frontend, FastAPI/Python backend, PostgreSQL database, Groq (open-weight LLM) for AI trip generation, plus OpenWeatherMap/OpenTripMap/Foursquare for real destination data.
 
 ## Prerequisites
 
@@ -40,10 +40,11 @@ Edit `backend/.env`:
 |---|---|---|
 | `JWT_SECRET_KEY` | **Required** | Must be ≥32 bytes or the app refuses to start. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `DATABASE_URL` | **Required** | `postgresql+psycopg://atlas_user:<password>@localhost:5432/atlas` |
-| `GEMINI_API_KEY` | **Required** | AI trip generation and chat won't work without it. Get one free at https://aistudio.google.com/app/apikey |
+| `GROQ_API_KEY` | **Required** | AI trip generation and chat won't work without it. Free key, no card: https://console.groq.com/keys |
+| `GROQ_MODEL` | Optional | Defaults to `openai/gpt-oss-120b`. List what your account can use: `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"` |
 | `OPENWEATHER_API_KEY` | Optional | Real weather on the destination-details page and in the planner's Weather agent. Free at https://openweathermap.org/api. Without it, weather shows "unavailable" — the app still works. |
 | `OPENTRIPMAP_API_KEY` | Optional | Real activities/attractions on the destination-details page. Free, no card, at https://opentripmap.io/product. Without it, activities show "unavailable". |
-| `FOURSQUARE_API_KEY` | Optional | Real restaurants on the destination-details page. Free tier, no card, at https://developer.foursquare.com. Without it, restaurants show "unavailable". |
+| _(none)_ | — | Restaurants/food places come from OpenStreetMap via the Overpass API, which needs no key. `FOURSQUARE_API_KEY` is no longer used. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | Optional | "Continue with Google" login. Hidden/disabled if unset. |
 | `REDIS_URL` | Optional | Shares rate-limit state across multiple backend workers. Falls back to in-process (fine for local/single-worker) if unset. |
 
@@ -99,11 +100,11 @@ cd frontend && npx tsc --noEmit  # expect no output (clean)
 cd frontend && npm run build     # expect a successful production build
 ```
 
-Then in the browser: register a user → generate a trip on `/plan` (this calls real Gemini + real weather/routing agents, takes ~30s–2min) → click any destination card on `/explore` to see real weather/activities/restaurants.
+Then in the browser: register a user → generate a trip on `/plan` (this calls real Groq + real weather/routing agents, takes ~5-10s) → click any destination card on `/explore` to see real weather/activities/restaurants.
 
 ## Known gotchas
 
-- `google-generativeai` prints a deprecation `FutureWarning` on every Gemini call — expected noise, not an error, safe to ignore for now.
-- Gemini's free tier has a low per-minute quota; heavy testing (many chat/planner calls in a short window) will surface as `502`s from the app, not `429`s — that's Gemini's own quota, not ATLAS's rate limiter.
+- If `GROQ_MODEL` names a model your account can't use, the provider returns 404 and ATLAS fails fast with a clear "does not recognise model" error — list available models with the curl command above rather than guessing.
+- Provider rate limits surface as ATLAS's own structured `429` (with `Retry-After`), distinct from the app's per-user limiter.
 - If `alembic upgrade head` fails with a connection error, Postgres isn't running or `DATABASE_URL` is wrong — check both before anything else.
 - Hotels and flights intentionally have no live-data integration (no free/no-signup provider exists for real pricing or availability) — they're honestly labeled as estimates/unavailable, not a bug.

@@ -325,7 +325,9 @@ export const lostFoundItems: LostFoundItem[] = [
   location: 'Baga Beach, Goa',
   date: '2026-08-02',
   description: 'Left near the shack seating around sunset. Contains a lens cap and a blue strap.',
-  image: IMAGES.goa,
+  image: '/lost-found/camera-bag.jpg',
+  imageCredit: { author: 'FASTILY', license: 'CC BY-SA 4.0', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Nikon_Camera_Bag_1_2019-03-07.jpg' },
+  isRepresentative: true,
   status: 'Open',
   contact: 'In-app message'
 },
@@ -337,7 +339,9 @@ export const lostFoundItems: LostFoundItem[] = [
   location: 'Leh Airport, Ladakh',
   date: '2026-07-28',
   description: 'Found at the domestic arrivals bench. Handed to the airport help desk.',
-  image: IMAGES.swissAlps,
+  image: '/lost-found/passport-wallet.jpg',
+  imageCredit: { author: 'Rojasoscar1', license: 'CC BY-SA 4.0', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Current_cover_Costa_Rican_passport.jpg' },
+  isRepresentative: true,
   status: 'Matched',
   contact: 'Email'
 },
@@ -349,7 +353,9 @@ export const lostFoundItems: LostFoundItem[] = [
   location: 'Sethan Trail, Manali',
   date: '2026-07-19',
   description: 'Left at the second viewpoint. Currently with the Sethan homestay owner.',
-  image: IMAGES.manali,
+  image: '/lost-found/trekking-poles.jpg',
+  imageCredit: { author: 'Daniel Case', license: 'CC BY-SA 3.0', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Trekking_poles.jpg' },
+  isRepresentative: true,
   status: 'Open',
   contact: 'Phone'
 },
@@ -361,7 +367,9 @@ export const lostFoundItems: LostFoundItem[] = [
   location: 'Fort Kochi, Kerala',
   date: '2026-06-30',
   description: 'Lost during the evening heritage walk near the Chinese fishing nets.',
-  image: IMAGES.kerala,
+  image: '/lost-found/silver-bangle.jpg',
+  imageCredit: { author: 'SpeakingArch', license: 'CC BY-SA 4.0', sourceUrl: 'https://commons.wikimedia.org/wiki/File:Thela,_Silver_Bangle,_Jharkhand,_India.jpg' },
+  isRepresentative: true,
   status: 'Resolved',
   contact: 'In-app message'
 }];

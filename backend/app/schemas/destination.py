@@ -23,8 +23,15 @@ class WeatherDetailSchema(BaseModel):
 class PlaceSchema(BaseModel):
     name: str
     category: str | None = None
+    # OpenStreetMap carries these for food places; OpenTripMap attractions
+    # leave them unset. Optional everywhere so a missing tag stays missing
+    # instead of being filled in with a plausible-looking value.
+    cuisine: str | None = None
     rating: float | None = None
     address: str | None = None
+    phone: str | None = None
+    website: str | None = None
+    opening_hours: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     source: str

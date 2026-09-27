@@ -1,30 +1,51 @@
 import { useState } from 'react';
-import { CalendarRangeIcon, MapPinIcon, RefreshCwIcon, SparklesIcon } from 'lucide-react';
+import { CalendarRangeIcon, ImageOffIcon, MapPinIcon, RefreshCwIcon, SparklesIcon } from 'lucide-react';
 import { Badge, Button, Card, ErrorState } from '../ui/Primitives';
 import { discoverDestinations } from '../../services/atlasApi';
 import { DiscoveredDestination } from '../../types';
 import { compactInr } from '../../utils/format';
 
 function DiscoveryCard({ destination }: {destination: DiscoveredDestination;}) {
+  // A remote photo can still 404 or be blocked after we resolved it, so drop
+  // back to the placeholder on load failure rather than showing a broken image.
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = Boolean(destination.imageUrl) && !imageFailed;
+
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap gap-1.5">
-        {destination.categories.map((category) =>
-        <Badge key={category} tone="accent">{category}</Badge>
-        )}
-      </div>
-      <h3 className="mt-2.5 text-[15px] font-bold text-ink">{destination.name}</h3>
-      <p className="mt-0.5 flex items-center gap-1 text-[13px] text-muted">
-        <MapPinIcon className="h-3.5 w-3.5" />
-        {destination.country}
-      </p>
-      <p className="mt-2 text-[13px] leading-relaxed text-muted">{destination.description}</p>
-      <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[12px]">
-        <span className="inline-flex items-center gap-1.5 text-muted">
-          <CalendarRangeIcon className="h-3.5 w-3.5" />
-          {destination.durationDays} Days · {destination.bestSeason}
-        </span>
-        <span className="font-semibold text-brand">From {compactInr(destination.budgetFrom)}</span>
+    <Card className="overflow-hidden">
+      {showImage ?
+      <img
+        src={destination.imageUrl}
+        alt={`${destination.name}, ${destination.country}`}
+        onError={() => setImageFailed(true)}
+        className="h-40 w-full object-cover" /> :
+
+      <div
+        className="flex h-40 w-full items-center justify-center bg-gradient-to-br from-brand/15 to-accent/15"
+        aria-hidden="true">
+          <ImageOffIcon className="h-6 w-6 text-muted" />
+        </div>
+      }
+
+      <div className="p-4">
+        <div className="flex flex-wrap gap-1.5">
+          {destination.categories.map((category) =>
+          <Badge key={category} tone="accent">{category}</Badge>
+          )}
+        </div>
+        <h3 className="mt-2.5 text-[15px] font-bold text-ink">{destination.name}</h3>
+        <p className="mt-0.5 flex items-center gap-1 text-[13px] text-muted">
+          <MapPinIcon className="h-3.5 w-3.5" />
+          {destination.country}
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted">{destination.description}</p>
+        <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-[12px]">
+          <span className="inline-flex items-center gap-1.5 text-muted">
+            <CalendarRangeIcon className="h-3.5 w-3.5" />
+            {destination.durationDays} Days · {destination.bestSeason}
+          </span>
+          <span className="font-semibold text-brand">From {compactInr(destination.budgetFrom)}</span>
+        </div>
       </div>
     </Card>);
 

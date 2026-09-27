@@ -51,7 +51,7 @@ def test_recommendations_reflect_trip_preferences(client: TestClient, user_a_tok
                 title="Kolkata", destination="Kolkata", start_date=request.start_date, end_date=request.end_date,
                 total_budget=request.budget,
                 days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[
-                    ActivitySchema(time="10:00", description="Explore", location="Kolkata", estimated_cost=500)
+                    ActivitySchema(time="10:00", description="Explore", location="Kolkata", estimated_cost=500, category="activity")
                 ])],
             ),
             data_context={"is_realtime_data": False},

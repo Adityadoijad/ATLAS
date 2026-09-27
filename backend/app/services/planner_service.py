@@ -1,14 +1,18 @@
-"""Structured Gemini trip-plan generation."""
+"""Structured AI trip-plan generation (provider-agnostic via ai_service)."""
 import asyncio
 import json
 import logging
-from typing import Any
 
 from pydantic import ValidationError
 
-from app.core.config import settings
 from app.core.prompts import ATLAS_SYSTEM_INSTRUCTION
 from app.schemas.planner import GeneratedTripPlanSchema, PlannerRequest
+from app.services.ai_service import (
+    AIConfigurationError,
+    AIQuotaExceededError,
+    extract_json,
+    generate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +30,14 @@ class PlannerValidationError(RuntimeError):
 
 
 class PlannerQuotaExceededError(RuntimeError):
-    """Gemini's own upstream quota (not ATLAS's app-level rate limit) is
+    """The AI provider's own upstream quota (not ATLAS's app-level rate limit) is
     exhausted. Surfaced immediately — retrying within seconds won't help a
     daily quota, so this skips the transient-retry loop and the caller maps
     it straight to a 429 instead of silently falling back to a stub plan."""
 
 
 def _default_plan(request: PlannerRequest, *, fallback_reason: str) -> GeneratedTripPlanSchema:
-    """Return a bounded, valid structure when Gemini cannot satisfy the schema.
+    """Return a bounded, valid structure when the AI cannot satisfy the schema.
 
     Marked is_realtime_data=False so callers and the frontend never present this
     placeholder as a genuine AI-generated itinerary.
@@ -55,6 +59,7 @@ def _default_plan(request: PlannerRequest, *, fallback_reason: str) -> Generated
                         "description": "Explore local highlights at your own pace",
                         "location": request.destination,
                         "estimated_cost": 0,
+                        "category": "activity",
                     }
                 ],
             }
@@ -64,16 +69,8 @@ def _default_plan(request: PlannerRequest, *, fallback_reason: str) -> Generated
     )
 
 
-def _generate_plan_sync(request: PlannerRequest) -> GeneratedTripPlanSchema:
-    try:
-        import google.generativeai as genai
-    except ImportError as exc:
-        raise PlannerConfigurationError("The Gemini SDK is not installed.") from exc
-
-    if not settings.GEMINI_API_KEY:
-        raise PlannerConfigurationError("GEMINI_API_KEY is not set.")
-
-    prompt = f"""Create a practical travel plan as JSON only.
+def _build_prompt(request: PlannerRequest) -> str:
+    return f"""Create a practical travel plan as JSON only.
 Destination: {request.destination}
 Start date: {request.start_date.isoformat()}
 End date: {request.end_date.isoformat()}
@@ -83,7 +80,17 @@ Preferences: {json.dumps(request.preferences)}
 
 Return an object with title, destination, start_date, end_date, total_budget, and days.
 Each day must have day_number, date, title, and activities. Each activity must have
-time, description, location, and estimated_cost. Keep dates within the trip range.
+time, description, location, estimated_cost, and category. Keep dates within the trip range.
+
+Every activity MUST include exactly one category, as a plain lowercase value
+from this list — no other values are accepted:
+- "accommodation" = hotel/stay/lodging costs
+- "travel" = flights, trains, taxis, buses, transfers, local transport
+- "food" = breakfast, lunch, dinner, snacks, restaurants, meals
+- "activity" = attractions, tours, sightseeing, entertainment, experiences
+
+Include the real accommodation and meal costs as their own activities so the
+budget breakdown reflects the whole trip, not just sightseeing.
 
 CRITICAL: total_budget and every estimated_cost MUST be a plain JSON number
 (e.g. 3500.0), never a string, and never containing a currency symbol, currency
@@ -93,40 +100,44 @@ Correct:   "estimated_cost": 3500.0
 Incorrect: "estimated_cost": "₹3,500"
 Incorrect: "estimated_cost": "3500 INR"
 """
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name="gemini-3.6-flash",
-        system_instruction=ATLAS_SYSTEM_INSTRUCTION,
-        generation_config={"response_mime_type": "application/json"},
-    )
+
+
+async def _generate_plan_once(request: PlannerRequest) -> GeneratedTripPlanSchema:
     try:
-        response: Any = model.generate_content(prompt)
-    except Exception as exc:
-        from google.api_core.exceptions import ResourceExhausted, TooManyRequests
-        if isinstance(exc, (ResourceExhausted, TooManyRequests)):
-            raise PlannerQuotaExceededError("Gemini's free-tier quota is exhausted right now.") from exc
-        raise
+        raw = await generate(
+            _build_prompt(request),
+            system_instruction=ATLAS_SYSTEM_INSTRUCTION,
+            json_mode=True,
+        )
+    except AIQuotaExceededError as exc:
+        raise PlannerQuotaExceededError(str(exc)) from exc
+    except AIConfigurationError as exc:
+        raise PlannerConfigurationError(str(exc)) from exc
+
     try:
-        return GeneratedTripPlanSchema.model_validate_json(response.text)
-    except ValidationError:
-        logger.warning("Gemini response failed schema validation. Raw response: %s", response.text[:2000])
+        return GeneratedTripPlanSchema.model_validate(extract_json(raw))
+    except (ValidationError, ValueError):
+        # Both mean the same thing operationally: the model produced output
+        # ATLAS can't trust. The caller retries once, then falls back to a
+        # clearly-labelled placeholder rather than inventing an itinerary.
+        logger.warning("AI response failed schema validation. Raw response: %s", raw[:2000])
         raise
 
 
 async def generate_trip_plan(request: PlannerRequest) -> GeneratedTripPlanSchema:
     """Generate a validated plan with one schema retry and bounded transient retries."""
-    validation_error: ValidationError | None = None
+    validation_error: Exception | None = None
     generation_error: Exception | None = None
     transient_attempts = 0
     validation_attempts = 0
     while transient_attempts < 3 and validation_attempts < 2:
         try:
-            return await asyncio.to_thread(_generate_plan_sync, request)
+            return await _generate_plan_once(request)
         except PlannerConfigurationError:
             raise
         except PlannerQuotaExceededError:
             raise
-        except ValidationError as exc:
+        except (ValidationError, ValueError) as exc:
             validation_error = exc
             validation_attempts += 1
             if validation_attempts == 2:
@@ -139,7 +150,7 @@ async def generate_trip_plan(request: PlannerRequest) -> GeneratedTripPlanSchema
         except Exception as exc:
             generation_error = exc
             transient_attempts += 1
-            logger.warning("Gemini generation attempt failed: %s: %s", type(exc).__name__, exc)
+            logger.warning("AI generation attempt failed: %s: %s", type(exc).__name__, exc)
             if transient_attempts < 3:
                 await asyncio.sleep(0.25 * transient_attempts)
 

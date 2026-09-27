@@ -28,7 +28,7 @@ async def discover_recommendations(
     current_user: User = Depends(get_current_user),
 ) -> list[DiscoveredDestinationSchema]:
     """On-demand AI-generated destination suggestions, distinct from the fast
-    catalog-based /recommendations above. Real Gemini call — slower, and rate
+    catalog-based /recommendations above. Real AI call — slower, and rate
     limited like the trip planner. Never silently falls back to fake content:
     a genuine AI failure surfaces as an error to the caller."""
     await ai_rate_limiter.enforce(

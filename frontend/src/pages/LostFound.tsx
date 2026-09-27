@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { PackageSearchIcon, SearchIcon } from 'lucide-react';
+import { PackageSearchIcon, SearchIcon, XIcon } from 'lucide-react';
 import { LostFoundCard } from '../components/cards/ContentCards';
 import { Button, EmptyState, Field, Input, Select, Tabs, Textarea } from '../components/ui/Primitives';
 import { Modal } from '../components/ui/Overlays';
 import { useAtlas } from '../contexts/AtlasContext';
 import { submitLostFound } from '../services/atlasApi';
-import { IMAGES } from '../data/destinations';
+import { readImageAsDataUrl } from '../utils/imageFile';
 import { LostFoundItem } from '../types';
 
 const categories = ['Electronics', 'Documents', 'Gear', 'Jewellery', 'Clothing', 'Other'];
@@ -26,6 +26,23 @@ export function LostFoundPage() {
     contact: 'In-app message'
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // The reporter's own photo of the actual item — the only image on this board
+  // that genuinely shows the thing being looked for.
+  const [photo, setPhoto] = useState('');
+
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      setPhoto(await readImageAsDataUrl(file));
+      setErrors((prev) => ({ ...prev, photo: '' }));
+    } catch (reason) {
+      setPhoto('');
+      setErrors((prev) => ({
+        ...prev,
+        photo: reason instanceof Error ? reason.message : 'That image could not be read.'
+      }));
+    }
+  };
 
   const results = lostFound.filter((item) => {
     const matchesTab = tab === 'all' || item.type === tab;
@@ -51,13 +68,18 @@ export function LostFoundPage() {
       location: form.location,
       date: form.date,
       description: form.description || 'No additional description provided.',
-      image: IMAGES.culture,
+      // The reporter's own photo, or nothing at all. Never a stand-in picture
+      // of some other object — on a lost-and-found board that invites people
+      // to "recognise" an item that was never theirs.
+      image: photo,
+      isRepresentative: false,
       contact: form.contact
     });
     addLostFound(created);
     setSubmitting(false);
     setFormType(null);
     setForm({ title: '', category: 'Electronics', location: '', date: '', description: '', contact: 'In-app message' });
+    setPhoto('');
     toast({ title: 'Report submitted', description: 'Travellers in this area will be notified.', tone: 'success' });
   };
 
@@ -174,8 +196,33 @@ export function LostFoundPage() {
               
             </Field>
           </div>
-          <Field label="Image" hint="Optional — a photo increases match rates." htmlFor="lf-img">
-            <Input id="lf-img" type="file" accept="image/*" className="pt-2.5 text-[13px]" />
+          <Field
+            label="Photo of the item"
+            hint="Optional — a real photo of the item makes a match far more likely."
+            error={errors.photo}
+            htmlFor="lf-img">
+
+            {photo ?
+            <div className="flex items-center gap-3 rounded-xl border border-line p-2.5">
+                <img src={photo} alt="Photo of the reported item" className="h-16 w-20 rounded-lg object-cover" />
+                <p className="flex-1 text-[12.5px] text-muted">This photo will appear on your report.</p>
+                <button
+                type="button"
+                onClick={() => setPhoto('')}
+                aria-label="Remove the photo"
+                className="rounded-lg p-1.5 text-muted hover:bg-subtle hover:text-ink">
+
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div> :
+
+            <Input
+              id="lf-img"
+              type="file"
+              accept="image/*"
+              onChange={(e) => pickPhoto(e.target.files?.[0])}
+              className="pt-2.5 text-[13px]" />
+            }
           </Field>
           <Field label="Contact preference" htmlFor="lf-contact">
             <Select id="lf-contact" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })}>

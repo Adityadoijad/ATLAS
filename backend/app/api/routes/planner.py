@@ -40,7 +40,7 @@ async def generate_and_save_trip(
     try:
         generated: PlannerResult = await generate_trip_plan(request)
     except PlannerQuotaExceededError as exc:
-        # Gemini's own free-tier quota, not ATLAS's rate limiter — a distinct
+        # The AI provider's own quota, not ATLAS's rate limiter — a distinct
         # 429 so the client can tell "you're going too fast" apart from
         # "the AI provider's daily/per-minute quota is exhausted."
         raise HTTPException(
@@ -76,6 +76,9 @@ async def generate_and_save_trip(
             preferences=request.preferences,
             currency=request.currency.upper(),
             status="upcoming",
+            # Recorded now so a later e-ticket can state honestly which parts
+            # were live data and which were AI estimates.
+            data_context=generated.data_context,
         )
         db.add(trip)
         db.flush()
@@ -85,8 +88,11 @@ async def generate_and_save_trip(
                 day_number=day.day_number,
                 date=day.date,
                 title=day.title,
+                # Pipe-delimited so the frontend can reconstruct each activity.
+                # Category is last so older rows (4 fields) still parse, just
+                # without a category.
                 description="\n".join(
-                    f"{activity.time} | {activity.description} | {activity.location} | {activity.estimated_cost}"
+                    f"{activity.time} | {activity.description} | {activity.location} | {activity.estimated_cost} | {activity.category}"
                     for activity in day.activities
                 ),
                 estimated_cost=sum(activity.estimated_cost for activity in day.activities),

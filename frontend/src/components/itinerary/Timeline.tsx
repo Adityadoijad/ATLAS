@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import {
   BedDoubleIcon,
   ClockIcon,
+  ExternalLinkIcon,
   MapIcon,
   MapPinIcon,
   NavigationIcon,
@@ -84,7 +85,15 @@ export function ItineraryTimeline({ days }: {days: ItineraryDay[];}) {
 
 }
 
-export function MapCard({ destination, stops }: {destination: string;stops: string[];}) {
+export function MapCard({
+  destination,
+  stops,
+  directionsUrl
+
+
+
+
+}: {destination: string;stops: string[];directionsUrl?: string | null;}) {
   return (
     <Card className="overflow-hidden">
       <div className="relative h-56 bg-[#e8eef7] dark:bg-[#16233a]">
@@ -124,9 +133,22 @@ export function MapCard({ destination, stops }: {destination: string;stops: stri
             </li>
           )}
         </ul>
-        <p className="mt-4 rounded-xl bg-canvas p-3 text-[12.5px] text-muted">
-          Total in-city travel time reduced by 41 minutes compared to a chronological route.
-        </p>
+        {/* External hand-off, not a replacement for the route above. Rendered
+            only when there are at least two mappable stops, so the link can
+            never open a broken map. */}
+        {directionsUrl &&
+        <a
+          href={directionsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open this ${destination} route in Google Maps (opens in a new tab)`}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2.5 text-[13px] font-semibold text-brand transition-colors hover:border-brand/40 hover:bg-brand/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+
+            <MapIcon className="h-4 w-4" />
+            Open Route in Google Maps
+            <ExternalLinkIcon className="h-3.5 w-3.5" />
+          </a>
+        }
       </div>
     </Card>);
 
