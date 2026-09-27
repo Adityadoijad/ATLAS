@@ -15,7 +15,7 @@ Data © OpenStreetMap contributors, ODbL.
 """
 import asyncio
 import logging
-from time import monotonic
+from time import time
 
 import httpx
 
@@ -241,7 +241,7 @@ async def get_food_places(
     key = _cache_key(latitude, longitude, radius_m, amenities)
 
     entry = _cache.get(key)
-    if entry and monotonic() - entry[0] < _CACHE_TTL_SECONDS:
+    if entry and time() - entry[0] < _CACHE_TTL_SECONDS:
         return entry[1]
 
     existing = _inflight.get(key)
@@ -254,7 +254,7 @@ async def get_food_places(
     async def run() -> list[dict[str, object]]:
         try:
             places = await food_breaker.call(lambda: _request(latitude, longitude, radius_m, amenities))
-            _cache[key] = (monotonic(), places)
+            _cache[key] = (time(), places)
             return places
         finally:
             _inflight.pop(key, None)
