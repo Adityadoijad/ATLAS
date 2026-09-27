@@ -44,7 +44,7 @@ Edit `backend/.env`:
 | `GROQ_MODEL` | Optional | Defaults to `openai/gpt-oss-120b`. List what your account can use: `curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY"` |
 | `OPENWEATHER_API_KEY` | Optional | Real weather on the destination-details page and in the planner's Weather agent. Free at https://openweathermap.org/api. Without it, weather shows "unavailable" — the app still works. |
 | `OPENTRIPMAP_API_KEY` | Optional | Real activities/attractions on the destination-details page. Free, no card, at https://opentripmap.io/product. Without it, activities show "unavailable". |
-| `FOURSQUARE_API_KEY` | Optional | Real restaurants on the destination-details page. Free tier, no card, at https://developer.foursquare.com. Without it, restaurants show "unavailable". |
+| _(none)_ | — | Restaurants/food places come from OpenStreetMap via the Overpass API, which needs no key. `FOURSQUARE_API_KEY` is no longer used. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | Optional | "Continue with Google" login. Hidden/disabled if unset. |
 | `REDIS_URL` | Optional | Shares rate-limit state across multiple backend workers. Falls back to in-process (fine for local/single-worker) if unset. |
 

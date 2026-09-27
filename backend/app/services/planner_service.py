@@ -59,6 +59,7 @@ def _default_plan(request: PlannerRequest, *, fallback_reason: str) -> Generated
                         "description": "Explore local highlights at your own pace",
                         "location": request.destination,
                         "estimated_cost": 0,
+                        "category": "activity",
                     }
                 ],
             }
@@ -79,7 +80,17 @@ Preferences: {json.dumps(request.preferences)}
 
 Return an object with title, destination, start_date, end_date, total_budget, and days.
 Each day must have day_number, date, title, and activities. Each activity must have
-time, description, location, and estimated_cost. Keep dates within the trip range.
+time, description, location, estimated_cost, and category. Keep dates within the trip range.
+
+Every activity MUST include exactly one category, as a plain lowercase value
+from this list — no other values are accepted:
+- "accommodation" = hotel/stay/lodging costs
+- "travel" = flights, trains, taxis, buses, transfers, local transport
+- "food" = breakfast, lunch, dinner, snacks, restaurants, meals
+- "activity" = attractions, tours, sightseeing, entertainment, experiences
+
+Include the real accommodation and meal costs as their own activities so the
+budget breakdown reflects the whole trip, not just sightseeing.
 
 CRITICAL: total_budget and every estimated_cost MUST be a plain JSON number
 (e.g. 3500.0), never a string, and never containing a currency symbol, currency

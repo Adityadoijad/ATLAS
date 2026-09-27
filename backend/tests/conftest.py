@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.rate_limit import ai_rate_limiter
 from app.main import app
 from app.models.base import Base
-from app.models import ItineraryDay, SavedPlace, Trip, User  # noqa: F401 - registers model metadata
+from app.models import Booking, ItineraryDay, SavedPlace, Trip, User  # noqa: F401 - registers model metadata
 
 
 @pytest.fixture(scope="session")

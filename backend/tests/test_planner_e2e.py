@@ -28,6 +28,7 @@ async def fake_ai_plan(_: object) -> GeneratedTripPlanSchema:
                         description="Explore local highlights",
                         location="Goa",
                         estimated_cost=0,
+                        category="activity",
                     )
                 ],
             )

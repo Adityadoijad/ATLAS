@@ -1,8 +1,15 @@
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.validators import coerce_numeric_cost
+
+# The cost buckets the itinerary UI reports against. Kept as a strict literal
+# so an unexpected value (e.g. "hotel", "sightseeing") fails validation and
+# goes through the existing retry/fallback path rather than being silently
+# guessed at or bucketed wrongly in the frontend.
+ActivityCategory = Literal["accommodation", "travel", "food", "activity"]
 
 
 class ActivitySchema(BaseModel):
@@ -10,6 +17,7 @@ class ActivitySchema(BaseModel):
     description: str = Field(min_length=1, max_length=500)
     location: str = Field(min_length=1, max_length=200)
     estimated_cost: float = Field(ge=0)
+    category: ActivityCategory
 
     @field_validator("estimated_cost", mode="before")
     @classmethod

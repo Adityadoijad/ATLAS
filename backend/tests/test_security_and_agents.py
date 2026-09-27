@@ -30,7 +30,7 @@ def test_sub_agent_failure_returns_fallback_context(monkeypatch) -> None:
     )
     plan = GeneratedTripPlanSchema(
         title="Goa", destination="Goa", start_date=request.start_date, end_date=request.end_date, total_budget=1000,
-        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000)])],
+        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000, category="accommodation")])],
     )
 
     async def successful_agent(*_: object) -> dict[str, object]:
@@ -60,7 +60,7 @@ def test_ai_generation_retries_transient_failures(monkeypatch) -> None:
     )
     plan = GeneratedTripPlanSchema(
         title="Goa", destination="Goa", start_date=request.start_date, end_date=request.end_date, total_budget=1000,
-        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000)])],
+        days=[DayPlanSchema(day_number=1, date=request.start_date, title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=1000, category="accommodation")])],
     )
     attempts = 0
 

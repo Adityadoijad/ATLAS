@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.core.config import settings
 from app.api.routes.chat import router as chat_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.bookings import router as bookings_router
 from app.api.routes.trips import router as trips_router
 from app.api.routes.saved_places import router as saved_places_router
 from app.api.routes.planner import router as planner_router
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     # ── API routes ────────────────────────────────────────────────────────────
     app.include_router(auth_router, prefix="/api")
     app.include_router(trips_router, prefix="/api")
+    app.include_router(bookings_router, prefix="/api")
     app.include_router(planner_router, prefix="/api")
     app.include_router(saved_places_router, prefix="/api")
     app.include_router(recommendations_router, prefix="/api")

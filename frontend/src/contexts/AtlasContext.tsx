@@ -9,6 +9,8 @@ import {
   deletePersistedTrip,
   fetchCurrentUser,
   fetchPersistedSavedPlaces,
+  cancelPersistedBooking,
+  fetchPersistedBookings,
   fetchPersistedTrips,
   loginUser,
   registerUser,
@@ -90,12 +92,20 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       setAuthLoading(false);
       return;
     }
-    Promise.all([fetchCurrentUser(token), fetchPersistedTrips(token), fetchPersistedSavedPlaces(token)])
-      .then(([user, persistedTrips, persistedPlaces]) => {
+    Promise.all([
+      fetchCurrentUser(token),
+      fetchPersistedTrips(token),
+      fetchPersistedSavedPlaces(token),
+      // Signed-in users see their own persisted bookings; the seeded demo
+      // list is only what a signed-out visitor sees.
+      fetchPersistedBookings(token).catch(() => [])
+    ])
+      .then(([user, persistedTrips, persistedPlaces, persistedBookings]) => {
         setAuthUser(user);
         setTrips(persistedTrips);
         setSavedItems(persistedPlaces);
         setSaved(persistedPlaces.map((place) => place.id));
+        setBookings(persistedBookings);
       })
       .catch(() => {
         localStorage.removeItem('atlas_access_token');
@@ -105,15 +115,17 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
 
   const initializeSession = useCallback(async (token: string) => {
     localStorage.setItem('atlas_access_token', token);
-    const [user, persistedTrips, persistedPlaces] = await Promise.all([
+    const [user, persistedTrips, persistedPlaces, persistedBookings] = await Promise.all([
       fetchCurrentUser(token),
       fetchPersistedTrips(token),
-      fetchPersistedSavedPlaces(token)
+      fetchPersistedSavedPlaces(token),
+      fetchPersistedBookings(token).catch(() => [])
     ]);
     setAuthUser(user);
     setTrips(persistedTrips);
     setSavedItems(persistedPlaces);
     setSaved(persistedPlaces.map((place) => place.id));
+    setBookings(persistedBookings);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -132,6 +144,9 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
     setTrips([]);
     setSaved([]);
     setSavedItems([]);
+    // Back to the signed-out demo list, so one user's bookings never linger
+    // on screen for the next person to sign in.
+    setBookings(seedBookings);
     setPlan(null);
   }, []);
 
@@ -209,8 +224,18 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       bookings,
       addBooking: (b: Booking) => setBookings((prev) => [b, ...prev]),
       cancelBooking: (id: string) => {
+        const token = localStorage.getItem('atlas_access_token');
+        const target = bookings.find((b) => b.id === id);
         setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: 'cancelled' } : b));
-        toast({ title: 'Booking cancelled', description: 'A confirmation has been sent to your email.', tone: 'error' });
+        // Persisted bookings are cancelled server-side too, so the state
+        // survives a reload and the e-ticket reflects it.
+        if (token && target?.persisted) {
+          cancelPersistedBooking(id, token).catch(() => {
+            setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status: target.status } : b));
+            toast({ title: 'Could not cancel booking', description: 'Please try again.', tone: 'error' });
+          });
+        }
+        toast({ title: 'Booking cancelled', tone: 'error' });
       },
       lostFound,
       addLostFound: (item: LostFoundItem) => setLostFound((prev) => [item, ...prev]),

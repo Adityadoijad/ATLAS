@@ -14,12 +14,14 @@ import {
   WalletIcon } from
 'lucide-react';
 import { ItineraryTimeline, MapCard } from '../components/itinerary/Timeline';
+import { FoodPlace, FoodPlacesCard } from '../components/itinerary/FoodPlacesCard';
 import { BudgetCard, CommunityInsight, WeatherCard } from '../components/cards/ContentCards';
 import { BookingFlow } from '../components/booking/BookingFlow';
-import { Badge, Button, Card, Skeleton } from '../components/ui/Primitives';
+import { Badge, Button, Card, EmptyState, Skeleton } from '../components/ui/Primitives';
 import { useAtlas } from '../contexts/AtlasContext';
-import { generateTripPlan, persistTripPlan } from '../services/atlasApi';
+import { fetchLatestTripPlan, generateTripPlan, persistTripPlan } from '../services/atlasApi';
 import { formatRange, inr } from '../utils/format';
+import { buildGoogleMapsDirectionsUrl, limitRouteStops, routeStopsFromDays } from '../utils/googleMaps';
 
 export function ItineraryPage() {
   const { plan, setPlan, toast } = useAtlas();
@@ -28,28 +30,35 @@ export function ItineraryPage() {
   const [bookingOpen, setBookingOpen] = useState(false);
   const navigate = useNavigate();
 
+  const [restoring, setRestoring] = useState(!plan);
+
+  // Arriving here without a plan in context (a refresh, or a direct link)
+  // restores the traveller's most recent saved trip. It must never generate a
+  // stand-in trip for some other destination — showing a Goa itinerary to
+  // someone who planned Raipur is worse than showing nothing.
   useEffect(() => {
-    if (!plan) {
-      generateTripPlan({
-        destination: 'Goa',
-        startDate: '2026-09-12',
-        endDate: '2026-09-16',
-        adults: 2,
-        children: 0,
-        interests: ['Beaches', 'Food', 'Culture'],
-        transport: ['Flight', 'Local Transport'],
-        accommodation: ['Hotel'],
-        food: ['Local cuisine', 'Vegetarian'],
-        accessibility: [],
-        budget: 60000,
-        currency: 'INR',
-        flexibleBudget: true,
-        notes: 'I prefer quiet places and want to avoid crowded tourist attractions.'
-      }).then(setPlan);
+    if (plan) return;
+    const token = localStorage.getItem('atlas_access_token');
+    if (!token) {
+      setRestoring(false);
+      return;
     }
+    let cancelled = false;
+    setRestoring(true);
+    fetchLatestTripPlan(token).
+    then((latest) => {
+      if (!cancelled && latest) setPlan(latest);
+    }).
+    catch(() => {/* fall through to the empty state below */}).
+    finally(() => {
+      if (!cancelled) setRestoring(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [plan, setPlan]);
 
-  if (!plan) {
+  if (!plan && restoring) {
     return (
       <div className="space-y-5">
         <Skeleton className="h-52" />
@@ -58,6 +67,17 @@ export function ItineraryPage() {
           <Skeleton className="h-96" />
         </div>
       </div>);
+
+  }
+
+  if (!plan) {
+    return (
+      <EmptyState
+        icon={<SparklesIcon className="h-6 w-6" />}
+        title="No itinerary yet"
+        description="Plan a trip and ATLAS will build a day-by-day itinerary for your destination."
+        action={<Button onClick={() => navigate('/plan')}>Plan a New Trip</Button>} />);
+
 
   }
 
@@ -98,30 +118,105 @@ export function ItineraryPage() {
     }
   };
 
+  // Looked up by label rather than index so the tiles can't silently drift
+  // out of sync with the breakdown order.
+  const breakdownFor = (label: string) =>
+  plan.breakdown.find((entry) => entry.label === label)?.value ?? 0;
+
+  // All four categories are shown, so these add up to the estimated total.
   const summary = [
   { label: 'Estimated total cost', value: inr(plan.estimatedCost) },
-  { label: 'Travel time', value: '6h 40m total' },
-  { label: 'Accommodation', value: inr(plan.breakdown[0].value) },
-  { label: 'Food', value: inr(plan.breakdown[2].value) },
-  { label: 'Activities', value: inr(plan.breakdown[3].value) },
+  { label: 'Accommodation', value: inr(breakdownFor('Accommodation')) },
+  { label: 'Travel', value: inr(breakdownFor('Travel')) },
+  { label: 'Food', value: inr(breakdownFor('Food')) },
+  { label: 'Activities', value: inr(breakdownFor('Activities')) },
   { label: 'Remaining budget', value: inr(plan.budget - plan.estimatedCost) }];
 
-  const hasFallbackData = plan.is_realtime_data === false ||
-    plan.days.some((day) =>
-      day.activities.some((activity) =>
-        activity.is_realtime_data === false ||
-        activity.fallback === true ||
-        activity.is_fallback === true
-      )
-    );
+  // Report what is actually live vs estimated, per source. The overall
+  // is_realtime_data flag is always false while Hotel/Food have no live
+  // provider wired, so using it alone would wrongly blame weather and maps.
+  const dataStatus = (() => {
+    const context = plan.data_context as
+    Record<string, {is_realtime_data?: boolean;cost_is_estimated?: boolean;} | undefined> |
+    undefined;
+    if (!context) return null;
+
+    const liveLabels: string[] = [];
+    // Two different claims, phrased differently: Route/Weather/Food degrade to
+    // estimated *information*, while Hotel/Food costs are always estimated
+    // money. Food appears in both — OpenStreetMap tells us which restaurants
+    // exist, but publishes no prices, so its places can be live while its
+    // meal cost stays an AI estimate.
+    const estimatedCostLabels: string[] = [];
+    const estimatedDataLabels: string[] = [];
+
+    ([
+    ['route', 'Route', 'data'],
+    ['weather', 'Weather', 'data'],
+    ['hotel', 'Hotel', 'cost'],
+    ['food', 'Food', 'data']] as const).
+    forEach(([key, label, kind]) => {
+      const agent = context[key];
+      if (!agent || typeof agent.is_realtime_data !== 'boolean') return;
+      if (agent.is_realtime_data) {
+        liveLabels.push(label);
+      } else if (kind === 'cost') {
+        estimatedCostLabels.push(label);
+      } else {
+        estimatedDataLabels.push(label);
+      }
+      // An agent that sources real information but cannot source real prices
+      // reports both facts, so the banner never implies the money is live.
+      if (agent.cost_is_estimated && !estimatedCostLabels.includes(label)) {
+        estimatedCostLabels.push(label);
+      }
+    });
+
+    if (estimatedCostLabels.length === 0 && estimatedDataLabels.length === 0) return null;
+    return { liveLabels, estimatedCostLabels, estimatedDataLabels };
+  })();
+
+  // Only rendered when the Food agent actually reached OpenStreetMap; a
+  // fallback run carries no places and the card disappears entirely.
+  const foodPlaces = (() => {
+    const food = (plan.data_context as Record<string, {places?: FoodPlace[];} | undefined> | undefined)?.food;
+    return Array.isArray(food?.places) ? food.places : [];
+  })();
+
+  // The route's real stops, taken from the itinerary's own activity locations.
+  // The Route agent only geocodes the destination city, so there are no
+  // per-stop coordinates to use — Google Maps receives place names instead.
+  // Listed and linked from the same set, so the card shows exactly the route
+  // the Google Maps link opens.
+  const routeStops = limitRouteStops(routeStopsFromDays(plan.days, plan.destination));
+  const directionsUrl = buildGoogleMapsDirectionsUrl(routeStops);
+
+  const formatLabels = (labels: string[]) =>
+  labels.length <= 1 ?
+  labels.join('') :
+  `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 
   return (
     <div className="space-y-6">
-      {hasFallbackData &&
+      {dataStatus &&
       <div
         role="status"
         className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-[#92400E] dark:text-warning">
-        Note: Live weather and map services were unreachable. This itinerary uses estimated baseline data.
+        {dataStatus.liveLabels.length > 0 &&
+        <>{formatLabels(dataStatus.liveLabels)} data {dataStatus.liveLabels.length === 1 ? 'is' : 'are'} live. </>
+        }
+        {dataStatus.estimatedDataLabels.length > 0 &&
+        <>
+            {formatLabels(dataStatus.estimatedDataLabels)} data{' '}
+            {dataStatus.estimatedDataLabels.length === 1 ? 'is' : 'are'} currently estimated.{' '}
+          </>
+        }
+        {dataStatus.estimatedCostLabels.length > 0 &&
+        <>
+            {formatLabels(dataStatus.estimatedCostLabels)}{' '}
+            {dataStatus.estimatedCostLabels.length === 1 ? 'cost is an AI estimate' : 'costs are AI estimates'}.
+          </>
+        }
       </div>
       }
       <Card className="overflow-hidden">
@@ -232,8 +327,10 @@ export function ItineraryPage() {
         <div className="order-1 space-y-5 lg:order-2">
           <MapCard
             destination={plan.destination}
-            stops={['Airport → Hotel (12.4 km)', 'Hotel → Heritage walk (3.1 km)', 'Heritage walk → Dinner (5.1 km)']} />
+            stops={routeStops}
+            directionsUrl={directionsUrl} />
           
+          <FoodPlacesCard places={foodPlaces} destination={plan.destination} />
           <WeatherCard days={plan.weather} />
           <BudgetCard budget={plan.budget} spent={plan.estimatedCost} breakdown={plan.breakdown} />
           <CommunityInsight
@@ -276,7 +373,10 @@ export function ItineraryPage() {
           date: plan.startDate,
           price: plan.estimatedCost,
           travelers: plan.travelers,
-          image: plan.image
+          image: plan.image,
+          // Links the booking to the saved trip so its e-ticket can print the
+          // real day-by-day itinerary and its recorded data sources.
+          tripId: plan.id
         }} />
       
     </div>);

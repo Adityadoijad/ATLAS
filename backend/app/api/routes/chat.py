@@ -37,7 +37,7 @@ async def chat_endpoint(body: ChatRequest, request: Request) -> ChatResponse:
         )
 
     try:
-        reply = await ai_chat(message)
+        result = await ai_chat(message)
     except AIQuotaExceededError as exc:
         # The provider's own quota, not ATLAS's rate limiter — a distinct 429
         # so the client can tell "you're going too fast" apart from "the AI
@@ -64,4 +64,6 @@ async def chat_endpoint(body: ChatRequest, request: Request) -> ChatResponse:
             detail="The AI service returned an error. Please try again in a moment.",
         )
 
-    return ChatResponse(response=reply)
+    # `plan` is populated only when the assistant produced a complete
+    # itinerary, which is what gates the booking CTA in the UI.
+    return ChatResponse(response=result.reply, plan=result.plan)

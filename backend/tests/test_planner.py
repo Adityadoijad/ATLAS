@@ -22,8 +22,8 @@ async def fake_generate_trip_plan(_: object) -> PlannerResult:
         end_date=date(2026, 12, 11),
         total_budget=25000,
         days=[
-            DayPlanSchema(day_number=1, date=date(2026, 12, 10), title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=2000)]),
-            DayPlanSchema(day_number=2, date=date(2026, 12, 11), title="Beach day", activities=[ActivitySchema(time="09:00", description="Visit beach", location="Candolim", estimated_cost=1000)]),
+            DayPlanSchema(day_number=1, date=date(2026, 12, 10), title="Arrival", activities=[ActivitySchema(time="10:00", description="Check in", location="Panaji", estimated_cost=2000, category="accommodation")]),
+            DayPlanSchema(day_number=2, date=date(2026, 12, 11), title="Beach day", activities=[ActivitySchema(time="09:00", description="Visit beach", location="Candolim", estimated_cost=1000, category="activity")]),
         ],
     ), data_context={"is_realtime_data": False})
 

@@ -17,3 +17,7 @@ python-multipart
 authlib[client]
 itsdangerous>=2.0
 slowapi
+# PDF e-ticket generation (A4, tables, vector QR codes)
+reportlab
+# test-only: extract e-ticket text to assert on it
+pypdf

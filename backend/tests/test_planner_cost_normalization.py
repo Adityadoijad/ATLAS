@@ -6,12 +6,13 @@ from pydantic import ValidationError
 from app.schemas.planner import ActivitySchema, GeneratedTripPlanSchema
 
 
-def _activity(estimated_cost: object) -> dict:
+def _activity(estimated_cost: object, category: str = "activity") -> dict:
     return {
         "time": "09:00",
         "description": "Check in",
         "location": "Panaji",
         "estimated_cost": estimated_cost,
+        "category": category,
     }
 
 

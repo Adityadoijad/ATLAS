@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from datetime import date, datetime
 from typing import Any, List, Optional
@@ -36,6 +36,15 @@ class TripResponse(TripBase):
     updated_at: datetime
     itinerary_days: List[ItineraryDayResponse] = []
     data_context: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("data_context", mode="before")
+    @classmethod
+    def _default_empty_context(cls, value: object) -> object:
+        """Trips created outside the planner (and any created before the column
+        existed) have no recorded provenance. Keep the response contract an
+        object rather than leaking null to clients that already treat this as
+        a dict."""
+        return {} if value is None else value
 
     class Config:
         from_attributes = True

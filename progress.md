@@ -83,3 +83,64 @@ The repository also contains **uncommitted Google OAuth work in progress**. The 
 ## Current milestone
 
 **Phase 2D/E resilient planning baseline.** The app now has a test-backed, authenticated, rate-limited, atomic trip-generation pathway with bounded Gemini retries and partial-data fallbacks. The next meaningful step is expanding the specialist-agent and live-provider coverage.
+
+---
+
+# Update — 27 September 2026
+
+> Everything above this line predates the work below and is now **stale** in
+> places: the AI provider is Groq (not Gemini), food/restaurant data is live,
+> and bookings are persisted. Treat this section as current.
+
+## What we did
+
+### AI provider
+- Replaced Gemini with **Groq** across planner, chat and discovery.
+- All AI calls go through one module (`app/services/ai_service.py`) — agents never touch the SDK.
+- Model is configurable via `GROQ_MODEL` (currently `openai/gpt-oss-120b`).
+
+### Live data (all free, no paid APIs)
+- **Food/restaurants:** live OpenStreetMap data via the Overpass API — keyless, cached 20 min, with attribution. Replaced Foursquare.
+- **Destination photos:** real images from Wikimedia for AI-discovered places.
+- Weather (OpenWeatherMap), geocoding (Nominatim) and attractions (OpenTripMap) unchanged.
+
+### Trip planning
+- Added a required `category` field (`accommodation` / `travel` / `food` / `activity`) so the cost breakdown is real instead of guessed in the frontend.
+- The itinerary banner now names exactly which agents were live and which were estimates.
+- Per-agent timeouts, so slower providers don't force a fallback.
+
+### Bookings and e-ticket
+- Bookings are now **persisted in PostgreSQL** with a stable reference and owner checks (they used to exist only in browser memory and vanish on refresh).
+- Added a professional **A4 PDF e-ticket** (ReportLab) with QR code, fare breakdown, itinerary and data-source transparency.
+- Added **email delivery** of that same PDF over SMTP to the account's own address.
+- Booking success and email success are independent — a mail failure never affects the booking.
+
+### Assistant and UX
+- Assistant shows a **"Proceed to Booking"** CTA only after a complete plan, and hands the plan to the existing booking flow.
+- Itinerary route card links out to **Google Maps** (URL scheme, no API key) using the real itinerary stops.
+- Lost & Found photo upload now actually works; seeded items show real item photos with licence credit instead of beach pictures.
+
+### Bugs fixed along the way
+- `groq` was missing from the backend venv — every AI call was failing with a misleading "not configured" error.
+- `.env` was only found when uvicorn started from `backend/`; now anchored to the config file.
+- Itinerary page silently generated a fake Goa trip whenever it had no plan; now restores the real last trip or shows an empty state.
+- Removed fabricated UI values (hardcoded "41 minutes saved", fake travel-time tile).
+
+## Current state
+
+| Check | Result |
+| --- | --- |
+| Backend tests | 206 passed |
+| Frontend tests | 21 passed |
+| TypeScript | Clean |
+| Production build | Clean |
+| ESLint | 0 errors (3 pre-existing warnings) |
+
+## Still to do
+
+1. Verify real email delivery with actual SMTP credentials (only local mail server tested).
+2. Persist Lost & Found reports — still browser-only, lost on refresh.
+3. Dashboard "Recent activity" / "Travel insights" are still hardcoded.
+4. `Trips → View Trip` button has no action.
+5. Nothing is deployed yet (Render/Neon/Vercel unverified).
+6. Rotate the Groq API key before making the repo public.

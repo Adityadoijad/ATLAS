@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  ArrowRightIcon,
   BookmarkIcon,
   MessageSquarePlusIcon,
   MicIcon,
@@ -13,7 +15,8 @@ import { Badge, Button, Card } from '../components/ui/Primitives';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { suggestedPrompts } from '../data/content';
 import { sendAssistantMessage } from '../services/atlasApi';
-import { ChatCard, ChatMessage, Conversation } from '../types';
+import { BOOKING_DRAFT_STATE_KEY, bookingDraftFromPlan } from '../components/booking/bookingHandoff';
+import { AssistantPlan, ChatCard, ChatMessage, Conversation } from '../types';
 import { useAtlas } from '../contexts/AtlasContext';
 import { cn, inr, timeNow, uid } from '../utils/format';
 
@@ -60,6 +63,40 @@ function TravelCard({ card }: {card: ChatCard;}) {
           </button>
         </div>
       </div>
+    </div>);
+
+}
+
+/**
+ * Closing call to action on a reply that completed a full trip plan.
+ *
+ * Rendered only when the backend attached a plan summary, so it never follows
+ * a clarifying question, a general travel answer or an error. Clicking it
+ * navigates into the existing booking flow and books nothing — the user still
+ * confirms inside that flow.
+ */
+function BookingHandoff({ plan }: {plan: AssistantPlan;}) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="mt-3 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
+      <p className="text-[13.5px] font-semibold text-ink">Your trip plan is ready.</p>
+      <p className="mt-0.5 text-[12.5px] text-muted">
+        {plan.destination} · {plan.travelers} traveller{plan.travelers > 1 ? 's' : ''} · {inr(plan.estimatedCost)} estimated
+      </p>
+      <Button
+        className="mt-3"
+        size="sm"
+        icon={<ArrowRightIcon className="h-4 w-4" />}
+        onClick={() =>
+        navigate('/bookings', { state: { [BOOKING_DRAFT_STATE_KEY]: bookingDraftFromPlan(plan) } })
+        }>
+
+        Proceed to Booking
+      </Button>
+      <p className="mt-2 text-[11.5px] text-muted">
+        Opens the booking flow — nothing is booked until you confirm there.
+      </p>
     </div>);
 
 }
@@ -203,6 +240,7 @@ export function AssistantPage() {
                       <MarkdownContent>{m.content}</MarkdownContent>
                     )}
                   </div>
+                  {m.role === 'assistant' && m.plan && <BookingHandoff plan={m.plan} />}
                   {m.cards &&
                 <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
                       {m.cards.map((card, i) =>

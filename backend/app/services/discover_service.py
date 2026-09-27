@@ -21,6 +21,7 @@ from app.services.ai_service import (
     extract_json,
     generate,
 )
+from app.services.integrations.photos import attach_photos
 from app.services.recommendations import CATALOG, _build_tag_profile
 
 logger = logging.getLogger(__name__)
@@ -86,13 +87,28 @@ Each array item must have exactly these fields:
         raise DiscoveryGenerationError("AI returned suggestions that didn't match the required format.") from exc
 
 
+async def _with_photos(
+    destinations: list[DiscoveredDestinationSchema],
+) -> list[DiscoveredDestinationSchema]:
+    """Attach a real photo of each suggested place.
+
+    Looked up after generation rather than asked of the model, because a model
+    asked for an image URL will confidently invent one that 404s. A lookup that
+    finds nothing leaves image_url as None.
+    """
+    photos = await attach_photos([(item.name, item.country) for item in destinations])
+    for item, photo in zip(destinations, photos):
+        item.image_url = photo
+    return destinations
+
+
 async def generate_discoveries(user: User) -> list[DiscoveredDestinationSchema]:
     """One real attempt plus one retry on failure — no silent fallback plan;
     callers must surface an error rather than show fabricated content."""
     last_error: Exception | None = None
     for attempt in range(2):
         try:
-            return await _generate_once(user)
+            return await _with_photos(await _generate_once(user))
         except DiscoveryConfigurationError:
             raise
         except DiscoveryGenerationError as exc:

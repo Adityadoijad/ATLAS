@@ -1,11 +1,17 @@
 """Application settings loaded from environment variables."""
 
 import os
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Anchored to this file rather than the process working directory: uvicorn is
+# started from several places (repo root, backend/, an IDE, a service manager)
+# and a bare load_dotenv() silently finds nothing when the cwd is not backend/.
+# The symptom was every AI call failing as "not configured" while .env was
+# perfectly fine.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 class Settings:
@@ -16,7 +22,18 @@ class Settings:
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     OPENWEATHER_API_KEY: str = os.getenv("OPENWEATHER_API_KEY", "")
     OPENTRIPMAP_API_KEY: str = os.getenv("OPENTRIPMAP_API_KEY", "")
-    FOURSQUARE_API_KEY: str = os.getenv("FOURSQUARE_API_KEY", "")
+    # Outbound email (booking confirmations). Optional: with no SMTP_HOST the
+    # app runs exactly as before and the UI hides the email action rather than
+    # offering one that always fails.
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "")
+    SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "ATLAS Travel")
+    # STARTTLS on 587 is the common case; SSL-on-connect is port 465.
+    SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").strip().lower() in ("1", "true", "yes")
+    SMTP_USE_SSL: bool = os.getenv("SMTP_USE_SSL", "false").strip().lower() in ("1", "true", "yes")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL")
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -7,6 +7,7 @@ import {
   CalendarSyncIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CompassIcon,
   LanguagesIcon,
   MessageSquareQuoteIcon,
   MicIcon,
@@ -18,10 +19,11 @@ import {
 'lucide-react';
 import { Hero } from '../components/home/Hero';
 import { AgentFlow } from '../components/home/AgentFlow';
-import { DestinationCard } from '../components/cards/DestinationCard';
+import { DiscoverIndiaCard } from '../components/home/DiscoverIndiaCard';
 import { SectionHeading } from '../components/ui/Primitives';
-import { destinations } from '../data/destinations';
 import { features } from '../data/content';
+import { fetchIndiaRecommendations } from '../services/atlasApi';
+import { DiscoverIndiaRecommendation } from '../types';
 
 const iconMap: Record<string, ComponentType<{className?: string;}>> = {
   Sparkles: SparklesIcon,
@@ -35,22 +37,77 @@ const iconMap: Record<string, ComponentType<{className?: string;}>> = {
   CalendarSync: CalendarSyncIcon
 };
 
-function RecommendedCarousel() {
+/** Skeleton card shown while recommendations are loading. */
+function SkeletonCard() {
+  return (
+    <div className="w-[270px] shrink-0 snap-start">
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-card animate-pulse">
+        <div className="h-44 bg-muted/20" />
+        <div className="space-y-2.5 p-4">
+          <div className="h-4 w-2/3 rounded bg-muted/20" />
+          <div className="h-3 w-1/3 rounded bg-muted/20" />
+          <div className="flex gap-1 pt-1">
+            <div className="h-4 w-14 rounded-full bg-muted/20" />
+            <div className="h-4 w-14 rounded-full bg-muted/20" />
+          </div>
+          <div className="h-3 w-full rounded bg-muted/20" />
+          <div className="h-3 w-4/5 rounded bg-muted/20" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiscoverIndiaSection() {
   const scroller = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const [destinations, setDestinations] = useState<DiscoverIndiaRecommendation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchIndiaRecommendations()
+      .then((data) => {
+        if (!active) return;
+        setDestinations(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setError(true);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const scrollBy = (dir: number) => {
-    scroller.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
+    scroller.current?.scrollBy({ left: dir * 300, behavior: 'smooth' });
   };
 
+  /**
+   * Navigate to the Planner with the destination pre-filled.
+   * This is identical to how the Explore page and other parts of ATLAS
+   * trigger the planner — PlannerPage reads location.state.destination.
+   */
+  const handleCardClick = (destination: DiscoverIndiaRecommendation) => {
+    navigate('/plan', { state: { destination: destination.full_name } });
+  };
+
+  const isFallback = destinations.some((d) => d.is_fallback);
+  const subtitleText = isFallback
+    ? "Popular destinations across India. Click any card to start planning."
+    : "AI-curated destinations across India, refreshed regularly. Click any card to start planning.";
+
   return (
-    <section className="mx-auto max-w-shell px-5 pt-16 lg:px-8">
+    <section className="mx-auto max-w-shell px-5 pt-16 lg:px-8" aria-label="Discover India">
       <SectionHeading
-        title="AI Recommended for You"
-        subtitle="Ranked against your saved interests, past trips and traveller reviews."
+        title="Discover India"
+        subtitle={subtitleText}
         action={
         <div className="flex items-center gap-2">
             <button
+            id="discover-india-scroll-left"
             onClick={() => scrollBy(-1)}
             aria-label="Scroll recommendations left"
             className="hidden h-9 w-9 items-center justify-center rounded-full border border-line text-muted transition-colors hover:text-ink sm:flex">
@@ -58,6 +115,7 @@ function RecommendedCarousel() {
               <ChevronLeftIcon className="h-4 w-4" />
             </button>
             <button
+            id="discover-india-scroll-right"
             onClick={() => scrollBy(1)}
             aria-label="Scroll recommendations right"
             className="hidden h-9 w-9 items-center justify-center rounded-full border border-line text-muted transition-colors hover:text-ink sm:flex">
@@ -71,19 +129,51 @@ function RecommendedCarousel() {
         } />
       
 
+      {/* Loading state */}
+      {loading && (
+        <div className="mt-2 mb-1 flex items-center gap-2 text-[12.5px] text-muted">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+          >
+            <SparklesIcon className="h-3.5 w-3.5" />
+          </motion.div>
+          Discovering places for you…
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-[13px] text-muted">
+          <CompassIcon className="h-5 w-5 shrink-0 text-muted" />
+          <span>Recommendations are temporarily unavailable. <Link to="/explore" className="text-brand hover:underline">Browse all destinations →</Link></span>
+        </div>
+      )}
+
+      {/* Destination cards */}
       <div
         ref={scroller}
-        className="no-scrollbar mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2">
-        
-        {destinations.slice(0, 8).map((destination) =>
-        <div key={destination.id} className="w-[270px] shrink-0 snap-start">
-            <DestinationCard destination={destination} onClick={() => navigate(`/explore/${encodeURIComponent(destination.name)}`)} />
-          </div>
-        )}
+        className="no-scrollbar mt-6 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
+        id="discover-india-carousel"
+      >
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+          : destinations.map((dest) => (
+              <div key={dest.full_name} className="w-[270px] shrink-0 snap-start">
+                <DiscoverIndiaCard
+                  destination={dest}
+                  onClick={() => handleCardClick(dest)}
+                />
+              </div>
+            ))
+        }
       </div>
-    </section>);
+    </section>
+  );
 
 }
+
+
 
 function FeatureGrid() {
   return (
@@ -143,7 +233,7 @@ export function HomePage() {
   return (
     <>
       <Hero />
-      <RecommendedCarousel />
+      <DiscoverIndiaSection />
       <FeatureGrid />
       <AgentFlow />
       <ClosingCta />
