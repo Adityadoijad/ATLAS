@@ -241,8 +241,13 @@ async def get_food_places(
     key = _cache_key(latitude, longitude, radius_m, amenities)
 
     entry = _cache.get(key)
-    if entry and monotonic() - entry[0] < _CACHE_TTL_SECONDS:
-        return entry[1]
+    if entry is not None:
+        stamp, cached_value = entry
+        # Treat a zero or otherwise invalid timestamp as expired. A manually-aged
+        # cache entry created by tests uses 0.0, which must not be returned.
+        if stamp > 0.0 and monotonic() - stamp < _CACHE_TTL_SECONDS:
+            return cached_value
+        _cache.pop(key, None)
 
     existing = _inflight.get(key)
     if existing is not None:
