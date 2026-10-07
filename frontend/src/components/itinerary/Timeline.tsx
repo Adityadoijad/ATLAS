@@ -8,11 +8,11 @@ import {
   MapPinIcon,
   NavigationIcon,
   PlaneIcon,
-  StarIcon,
   TicketIcon,
   UtensilsIcon } from
 'lucide-react';
-import { ItineraryDay, ItineraryItem } from '../../types';
+import { ItineraryDay, ItineraryItem, TripRoute } from '../../types';
+import { arrivalLeg, formatLeg, routeIndexByRow, travelLabel } from '../../utils/routeSequence';
 import { Card } from '../ui/Primitives';
 import { cn, formatDate, inr } from '../../utils/format';
 
@@ -23,10 +23,22 @@ const kindIcon: Record<ItineraryItem['kind'], React.ComponentType<{className?: s
   activity: TicketIcon
 };
 
-export function ItineraryTimeline({ days }: {days: ItineraryDay[];}) {
+export function ItineraryTimeline({
+  days,
+  route
+}: {days: ItineraryDay[];route?: TripRoute;}) {
+  // One lookup for the whole timeline rather than a scan per row.
+  // Each itinerary row mapped to its position in the canonical route, so a
+  // place visited twice gets each arrival's own distance rather than the
+  // first one's.
+  const stopIndexByRow = routeIndexByRow(days, route);
+  // Distinguishes "still fetching" from "fetched, and there is no route" —
+  // conflating them is how a UI ends up showing a blank that reads as zero.
+  const routeLoaded = route !== undefined;
+
   return (
     <div className="space-y-6">
-      {days.map((day) =>
+      {days.map((day, dayIndex) =>
       <Card key={day.day} className="overflow-hidden">
           <div className="flex items-baseline justify-between border-b border-line bg-canvas/60 px-5 py-4">
             <h3 className="text-[15px] font-bold text-ink">
@@ -37,6 +49,17 @@ export function ItineraryTimeline({ days }: {days: ItineraryDay[];}) {
           <ol className="px-5 py-4">
             {day.items.map((item, index) => {
             const Icon = kindIcon[item.kind];
+            // The journey that gets the traveller *to* this stop. The very
+            // first stop of the trip has none — nothing precedes the boarding
+            // location — so its travel line is omitted rather than shown as 0.
+            const stopIndex = stopIndexByRow.get(`${dayIndex}:${index}`);
+            const travel = travelLabel(
+              arrivalLeg(route, stopIndex),
+              routeLoaded,
+              // Stop 0 is the boarding location: the journey begins there, so
+              // there is no arriving leg and none is missing.
+              stopIndex === 0 && route?.stops[0]?.isBoarding === true
+            );
             return (
               <motion.li
                 key={`${day.day}-${item.time}-${index}`}
@@ -64,12 +87,20 @@ export function ItineraryTimeline({ days }: {days: ItineraryDay[];}) {
                       <span className="inline-flex items-center gap-1">
                         <ClockIcon className="h-3.5 w-3.5" /> {item.duration}
                       </span>
-                      <span className="inline-flex items-center gap-1">
-                        <StarIcon className="h-3.5 w-3.5 fill-warning text-warning" /> {item.rating}
+                      {travel &&
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1',
+                        // A dimmer tone for the states that carry no number, so
+                        // "unavailable" cannot be mistaken at a glance for a
+                        // measurement.
+                        travel.available ? 'text-muted' : 'text-muted/70 italic'
+                      )}
+                      title={travel.available ? 'Road distance and driving time from the previous stop' : undefined}>
+
+                        <NavigationIcon className="h-3.5 w-3.5" /> {travel.text}
                       </span>
-                      <span className="inline-flex items-center gap-1">
-                        <NavigationIcon className="h-3.5 w-3.5" /> {item.distanceKm} km
-                      </span>
+                    }
                       <span className={cn('font-semibold', item.cost === 0 ? 'text-success' : 'text-ink')}>
                         {item.cost === 0 ? 'Free' : inr(item.cost)}
                       </span>
@@ -88,12 +119,18 @@ export function ItineraryTimeline({ days }: {days: ItineraryDay[];}) {
 export function MapCard({
   destination,
   stops,
-  directionsUrl
+  directionsUrl,
+  route,
+  boardingLabel
+}: {destination: string;stops: string[];directionsUrl?: string | null;route?: TripRoute;boardingLabel?: string | null;}) {
+  // The travel line under each stop, describing how the traveller got there.
+  // Index 0 has none: nothing precedes the start of the journey.
+  const legLabels = stops.map((_, index) => {
+    if (index === 0) return null;
+    const leg = route?.legs.find((candidate) => candidate.toIndex === index);
+    return formatLeg(leg);
+  });
 
-
-
-
-}: {destination: string;stops: string[];directionsUrl?: string | null;}) {
   return (
     <Card className="overflow-hidden">
       <div className="relative h-56 bg-[#e8eef7] dark:bg-[#16233a]">
@@ -122,14 +159,33 @@ export function MapCard({
         </span>
       </div>
       <div className="p-5">
-        <p className="text-[13px] font-semibold text-ink">Optimised by the Maps Agent</p>
+        <p className="text-[13px] font-semibold text-ink">
+          {boardingLabel ? `From ${boardingLabel}` : 'Route order'}
+        </p>
         <ul className="mt-3 space-y-2">
           {stops.map((stop, i) =>
-          <li key={stop} className="flex items-start gap-2.5 text-[13px] text-muted">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-bold text-brand">
+          <li key={`${stop}-${i}`} className="flex items-start gap-2.5 text-[13px] text-muted">
+              <span
+              className={cn(
+                'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+                // Stop 1 is where the traveller actually departs from, which is
+                // worth distinguishing from the places they are going to.
+                i === 0 && boardingLabel ? 'bg-brand text-white' : 'bg-brand/10 text-brand'
+              )}>
+
                 {i + 1}
               </span>
-              {stop}
+              <span className="min-w-0">
+                {stop}
+                {i === 0 && boardingLabel &&
+              <span className="ml-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand">
+                    Start
+                  </span>
+              }
+                {legLabels[i] &&
+              <span className="block text-[11.5px] text-muted/80">{legLabels[i]}</span>
+              }
+              </span>
             </li>
           )}
         </ul>

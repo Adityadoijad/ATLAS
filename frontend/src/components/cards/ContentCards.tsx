@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRightIcon,
-  BadgeCheckIcon,
   CalendarDaysIcon,
   ClockIcon,
   CloudSunIcon,
   HeartIcon,
   ImageOffIcon,
   MapPinIcon,
-  QuoteIcon,
   SparklesIcon,
   StarIcon,
   UsersIcon,
@@ -17,7 +15,9 @@ import {
 'lucide-react';
 import { Activity, Booking, LostFoundItem, Restaurant, SavedPlace, Trip } from '../../types';
 import { Badge, Button, Card } from '../ui/Primitives';
+import { DestinationImage } from './DestinationImage';
 import { cn, formatDate, formatRange, inr } from '../../utils/format';
+import { WeatherOutlook, outlookCaption } from '../../utils/weatherOutlook';
 import { downloadBookingTicket } from '../../services/atlasApi';
 import { useAtlas } from '../../contexts/AtlasContext';
 
@@ -178,7 +178,7 @@ export function TripCard({
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-col sm:flex-row">
-        <img src={trip.image} alt={trip.destination} className="h-40 w-full object-cover sm:h-auto sm:w-48" />
+        <DestinationImage destination={trip.destination} src={trip.image} className="h-40 w-full sm:h-auto sm:w-48" />
         <div className="flex flex-1 flex-col p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -199,21 +199,6 @@ export function TripCard({
             <span className="inline-flex items-center gap-1.5">
               <WalletIcon className="h-3.5 w-3.5" /> {inr(trip.budget)}
             </span>
-          </div>
-
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-[12px] text-muted">
-              <span>Planning progress</span>
-              <span className="font-semibold text-ink">{trip.progress}%</span>
-            </div>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-subtle">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${trip.progress}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-                className="h-full rounded-full bg-brand" />
-              
-            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -310,25 +295,72 @@ export function BookingCard({
 
 }
 
-export function WeatherCard({ days }: {days: {day: string;temp: number;condition: string;}[];}) {
+/**
+ * Weather from OpenWeatherMap, or an honest statement that there is none.
+ *
+ * Every branch below is driven by `outlook`, which is decided in
+ * `utils/weatherOutlook`. There is deliberately no default case that renders
+ * numbers: if the provider did not supply a day, no day is drawn.
+ */
+export function WeatherCard({ outlook }: {outlook: WeatherOutlook;}) {
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-[15px] font-bold text-ink">Weather outlook</h3>
         <CloudSunIcon className="h-5 w-5 text-accent" />
       </div>
+
+      {outlook.kind === 'no-trip' &&
+      <p className="mt-3 text-[13px] text-muted">
+          Plan a trip and the forecast for your destination will appear here.
+        </p>
+      }
+
+      {outlook.kind === 'loading' &&
       <div className="mt-4 grid grid-cols-5 gap-2">
-        {days.map((d) =>
-        <div key={d.day} className="rounded-xl bg-canvas p-2.5 text-center">
-            <p className="text-[11px] font-medium text-muted">{d.day}</p>
-            <p className="mt-1 text-base font-bold text-ink">{d.temp}°</p>
-            <p className="mt-0.5 text-[10px] leading-tight text-muted">{d.condition}</p>
-          </div>
+          {[0, 1, 2, 3, 4].map((slot) =>
+        <div key={slot} className="h-[68px] animate-pulse rounded-xl bg-canvas" />
         )}
-      </div>
-      <p className="mt-4 rounded-xl bg-warning/10 p-3 text-[12.5px] text-[#B45309] dark:text-warning">
-        Weather Agent moved your Day 3 outdoor activity to the morning to avoid expected rain.
-      </p>
+        </div>
+      }
+
+      {outlook.kind === 'unavailable' &&
+      <div className="mt-3">
+          <p className="text-[13px] font-semibold text-ink">Live weather unavailable</p>
+          <p className="mt-1 text-[12.5px] text-muted">{outlook.reason}</p>
+          <p className="mt-2 text-[12px] text-muted">
+            Nothing is shown for {outlook.destination} rather than an estimate.
+          </p>
+        </div>
+      }
+
+      {outlook.kind === 'forecast' &&
+      <>
+          <div className="mt-4 grid grid-cols-5 gap-2">
+            {outlook.days.slice(0, 5).map((day) =>
+          <div key={day.date} className="rounded-xl bg-canvas p-2.5 text-center">
+                <p className="text-[11px] font-medium text-muted">{day.weekday}</p>
+                <p className="mt-1 text-base font-bold text-ink">{Math.round(day.temperatureC)}°</p>
+                <p className="text-[10px] text-muted">
+                  {Math.round(day.temperatureMinC)}°–{Math.round(day.temperatureMaxC)}°
+                </p>
+                <p className="mt-0.5 text-[10px] capitalize leading-tight text-muted">{day.condition}</p>
+              </div>
+          )}
+          </div>
+          <p
+        className={cn(
+          'mt-4 rounded-xl p-3 text-[12.5px]',
+          outlook.coversTripDates ?
+          'bg-success/10 text-[#047857] dark:text-success' :
+          'bg-warning/10 text-[#B45309] dark:text-warning'
+        )}>
+
+            {outlookCaption(outlook)}
+          </p>
+          <p className="mt-2 text-[11px] text-muted">Live weather · OpenWeatherMap</p>
+        </>
+      }
     </Card>);
 
 }
@@ -362,63 +394,6 @@ export function BudgetCard({
           </li>
         )}
       </ul>
-    </Card>);
-
-}
-
-export function CommunityInsight({
-  title,
-  quote,
-  rating,
-  reviews,
-  positives,
-  concerns
-
-
-
-
-
-
-
-}: {title: string;quote: string;rating: number;reviews: number;positives: string[];concerns: string[];}) {
-  return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-[15px] font-bold text-ink">{title}</h3>
-        <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-ink">
-          <StarIcon className="h-3.5 w-3.5 fill-warning text-warning" />
-          {rating}
-          <span className="font-normal text-muted">({reviews.toLocaleString('en-IN')})</span>
-        </span>
-      </div>
-      <p className="mt-3 flex gap-2 rounded-xl bg-canvas p-3 text-[13px] italic leading-relaxed text-muted">
-        <QuoteIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-        {quote}
-      </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="text-[12px] font-semibold text-success">Common positives</p>
-          <ul className="mt-1.5 space-y-1">
-            {positives.map((p) =>
-            <li key={p} className="flex items-start gap-1.5 text-[12.5px] text-muted">
-                <BadgeCheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-                {p}
-              </li>
-            )}
-          </ul>
-        </div>
-        <div>
-          <p className="text-[12px] font-semibold text-warning">Potential concerns</p>
-          <ul className="mt-1.5 space-y-1">
-            {concerns.map((c) =>
-            <li key={c} className="flex items-start gap-1.5 text-[12.5px] text-muted">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warning" />
-                {c}
-              </li>
-            )}
-          </ul>
-        </div>
-      </div>
     </Card>);
 
 }

@@ -5,23 +5,22 @@
  * UI code must only ever talk to this module — swapping these bodies for `fetch`
  * calls is the only change required to connect the real backend.
  */
-import { activities, bookings, lostFoundItems, restaurants, savedPlaces, trips } from '../data/catalog';
-import { destinations, findDestination, IMAGES } from '../data/destinations';
+import { findDestination } from '../data/destinations';
 import {
-  Activity,
   AssistantPlan,
   Booking,
   ChatMessage,
-  Destination,
   DiscoverIndiaRecommendation,
   ItineraryItem,
   DestinationDetails,
+  DestinationForecast,
+  LocationSuggestion,
+  TripRoute,
   LostFoundItem,
   DiscoveredDestination,
   PlannerPreferences,
   RealPlace,
   RecommendedDestination,
-  Restaurant,
   SavedPlace,
   TripPlan,
   Trip } from
@@ -98,13 +97,14 @@ export async function fetchPersistedTrips(token: string): Promise<Trip[]> {
     id: String(trip.id),
     destination: String(trip.destination),
     country: '',
-    image: IMAGES.goa,
+    // Resolved per destination by the caller; never another place's photo.
+    image: '',
     startDate: String(trip.start_date),
     endDate: String(trip.end_date),
     travelers: Number(trip.travelers),
     budget: Number(trip.budget ?? 0),
     status: trip.status === 'past' ? 'past' : 'upcoming',
-    progress: 0
+    createdAt: trip.created_at ? String(trip.created_at) : undefined
   }));
 }
 
@@ -124,13 +124,29 @@ export async function fetchLatestTripPlan(token: string): Promise<TripPlan | nul
   return latest ? mapGeneratedTrip(latest, latest.budget ?? 0) : null;
 }
 
+/**
+ * GET /api/trips/{id} — one saved trip, as a full plan.
+ *
+ * Returns null when the trip does not exist or is not the caller's, so the
+ * itinerary page shows its empty state instead of a stand-in trip. Ownership
+ * is enforced server-side; this never trusts an id from the URL.
+ */
+export async function fetchTripPlanById(tripId: string, token: string): Promise<TripPlan | null> {
+  try {
+    const trip = await apiRequest<GeneratedTripResponse>(`/api/trips/${tripId}`, {}, token);
+    return mapGeneratedTrip(trip, trip.budget ?? 0);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchPersistedSavedPlaces(token: string): Promise<SavedPlace[]> {
   const data = await apiRequest<Array<Record<string, unknown>>>('/api/saved-places', {}, token);
   return data.map((place) => ({
     id: String(place.place_id),
     name: String(place.name),
     subtitle: String(place.description ?? ''),
-    image: String(place.image_url ?? IMAGES.goa),
+    image: String(place.image_url ?? ''),
     kind: (String(place.category ?? place.type) as SavedPlace['kind']),
     rating: Number(place.rating ?? 0)
   }));
@@ -171,7 +187,7 @@ export async function fetchDestinationDetails(destinationName: string, token: st
       wind_speed_ms: number | null;
       condition: string | null;
       icon: string | null;
-      forecast: Array<{ timestamp: string; temperature_c: number; condition: string; icon: string | null }>;
+      forecast: Array<{ timestamp: string; weekday: string | null; temperature_c: number; condition: string; icon: string | null }>;
       unavailable_reason: string | null;
     };
     activities: Array<{ name: string; category: string | null; cuisine: string | null; rating: number | null; address: string | null; phone: string | null; website: string | null; opening_hours: string | null; latitude: number | null; longitude: number | null; source: string }>;
@@ -195,6 +211,7 @@ export async function fetchDestinationDetails(destinationName: string, token: st
       icon: data.weather.icon,
       forecast: data.weather.forecast.map((f) => ({
         timestamp: f.timestamp,
+        weekday: f.weekday,
         temperatureC: f.temperature_c,
         condition: f.condition,
         icon: f.icon
@@ -206,6 +223,80 @@ export async function fetchDestinationDetails(destinationName: string, token: st
     restaurants: data.restaurants.map(mapRealPlace),
     restaurantsUnavailableReason: data.restaurants_unavailable_reason
   };
+}
+
+/**
+ * GET /api/weather/forecast — the only way the frontend gets weather.
+ *
+ * The OpenWeatherMap key lives in backend configuration and never reaches the
+ * browser, so there is no direct-to-provider path here to fall back on.
+ *
+ * A provider failure comes back as a 200 with `is_realtime_data: false`, which
+ * is why this resolves rather than throwing: "weather is unavailable" is a
+ * result the UI renders, not an error it recovers from.
+ */
+export async function fetchDestinationForecast(
+  destination: string,
+  token: string
+): Promise<DestinationForecast> {
+  const data = await apiRequest<{
+    destination: string;
+    is_realtime_data: boolean;
+    resolved_destination: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    local_date: string | null;
+    forecast_through: string | null;
+    days: Array<{
+      date: string;
+      weekday: string;
+      temperature_c: number;
+      temperature_min_c: number;
+      temperature_max_c: number;
+      condition: string | null;
+      icon: string | null;
+      step_count: number;
+      local_time_of_summary: string;
+    }>;
+    unavailable_reason: string | null;
+  }>(`/api/weather/forecast?destination=${encodeURIComponent(destination)}`, {}, token);
+
+  return {
+    destination: data.destination,
+    isRealtimeData: data.is_realtime_data,
+    resolvedDestination: data.resolved_destination,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    localDate: data.local_date,
+    forecastThrough: data.forecast_through,
+    days: data.days.map((day) => ({
+      date: day.date,
+      weekday: day.weekday,
+      temperatureC: day.temperature_c,
+      temperatureMinC: day.temperature_min_c,
+      temperatureMaxC: day.temperature_max_c,
+      condition: day.condition,
+      icon: day.icon,
+      stepCount: day.step_count,
+      localTimeOfSummary: day.local_time_of_summary
+    })),
+    unavailableReason: data.unavailable_reason
+  };
+}
+
+/**
+ * GET /api/destinations/:name/photo — a real photograph of a place.
+ *
+ * Returns null when Wikimedia has no genuine photo of it. The caller then
+ * draws a neutral placeholder: substituting a picture of a *different*
+ * destination is the bug this replaced, where a Manali trip rendered a Goa
+ * beach because Goa was the universal fallback image.
+ */
+export async function fetchDestinationPhoto(destination: string): Promise<string | null> {
+  const data = await apiRequest<{ url: string | null }>(
+    `/api/destinations/${encodeURIComponent(destination)}/photo`
+  );
+  return data.url;
 }
 
 export async function fetchRecommendations(token: string): Promise<RecommendedDestination[]> {
@@ -275,6 +366,7 @@ export async function fetchIndiaRecommendations(): Promise<DiscoverIndiaRecommen
         author: string | null;
         license: string | null;
       };
+      is_fallback?: boolean;
     }>>('/api/destinations/recommendations', { method: 'GET' });
 
     return data.map((item) => ({
@@ -294,6 +386,10 @@ export async function fetchIndiaRecommendations(): Promise<DiscoverIndiaRecommen
         author: item.image?.author ?? null,
         license: item.image?.license ?? null,
       },
+      // Carried through so the UI can say these are the curated stand-ins
+      // rather than live AI picks. Previously dropped here, which silently
+      // disabled the fallback notice on every page that checks it.
+      is_fallback: item.is_fallback ?? false,
     }));
   } catch {
     // Never propagate: the home page must always render even if this fails.
@@ -344,48 +440,6 @@ export async function persistTripPlan(plan: TripPlan, token: string): Promise<st
     }, token);
   }
   return trip.id;
-}
-
-/** GET /destinations */
-export async function fetchDestinations(): Promise<Destination[]> {
-  await latency();
-  return destinations;
-}
-
-/** GET /restaurants */
-export async function fetchRestaurants(): Promise<Restaurant[]> {
-  await latency();
-  return restaurants;
-}
-
-/** GET /activities */
-export async function fetchActivities(): Promise<Activity[]> {
-  await latency();
-  return activities;
-}
-
-/** GET /trips */
-export async function fetchTrips(): Promise<Trip[]> {
-  await latency();
-  return trips;
-}
-
-/** GET /bookings */
-export async function fetchBookings(): Promise<Booking[]> {
-  await latency();
-  return bookings;
-}
-
-/** GET /lost-found */
-export async function fetchLostFound(): Promise<LostFoundItem[]> {
-  await latency();
-  return lostFoundItems;
-}
-
-/** GET /saved-places */
-export async function fetchSavedPlaces(): Promise<SavedPlace[]> {
-  await latency();
-  return savedPlaces;
 }
 
 /** POST /bookings */
@@ -441,7 +495,7 @@ export async function createBooking(input: {
       reference: created.reference,
       title: created.title,
       type: created.booking_type as Booking['type'],
-      image: input.image ?? IMAGES.goa,
+      image: input.image ?? '',
       date: created.travel_date,
       price: created.price,
       travelers: created.travelers,
@@ -456,7 +510,7 @@ export async function createBooking(input: {
     reference: bookingReference(),
     title: input.title,
     type: input.type,
-    image: input.image ?? IMAGES.goa,
+    image: input.image ?? '',
     date: input.date,
     price: input.price,
     travelers: input.travelers,
@@ -468,18 +522,19 @@ export async function createBooking(input: {
 export async function fetchPersistedBookings(token: string): Promise<Booking[]> {
   const data = await apiRequest<Array<{
     id: string;reference: string;title: string;booking_type: string;
-    travel_date: string;price: number;travelers: number;status: string;
+    travel_date: string;price: number;travelers: number;status: string;created_at: string;
   }>>('/api/bookings', {}, token);
   return data.map((booking) => ({
     id: booking.id,
     reference: booking.reference,
     title: booking.title,
     type: booking.booking_type as Booking['type'],
-    image: IMAGES.goa,
+    image: '',
     date: booking.travel_date,
     price: booking.price,
     travelers: booking.travelers,
     status: booking.status as Booking['status'],
+    createdAt: booking.created_at,
     persisted: true
   }));
 }
@@ -555,119 +610,6 @@ export async function downloadBookingTicket(bookingId: string, token: string): P
   }
 }
 
-/** POST /plan  — the multi-agent planning pipeline */
-async function generateMockTripPlan(prefs: PlannerPreferences): Promise<TripPlan> {
-  await latency(400);
-  const match =
-  destinations.find((d) => d.name.toLowerCase().includes(prefs.destination.toLowerCase().trim())) ??
-  destinations.find((d) => d.country.toLowerCase().includes(prefs.destination.toLowerCase().trim())) ??
-  destinations[4];
-
-  const travellers = Math.max(1, prefs.adults + prefs.children);
-  const budget = prefs.budget || 60000;
-  const stay = Math.round(budget * 0.34);
-  const travel = Math.round(budget * 0.26);
-  const food = Math.round(budget * 0.16);
-  const acts = Math.round(budget * 0.15);
-  const estimatedCost = stay + travel + food + acts;
-
-  const dayTitles = [
-  'Arrival & Exploration',
-  'Culture & Local Flavours',
-  'Nature & Slow Hours',
-  'Adventure Day',
-  'Hidden Gems',
-  'Coast & Sunset',
-  'Departure'];
-
-
-  const start = prefs.startDate ? new Date(prefs.startDate) : new Date();
-  const totalDays = Math.min(
-    7,
-    Math.max(
-      3,
-      prefs.endDate && prefs.startDate ?
-      Math.round(
-        (new Date(prefs.endDate).getTime() - new Date(prefs.startDate).getTime()) / 86400000
-      ) + 1 :
-      match.durationDays
-    )
-  );
-
-  const days = Array.from({ length: totalDays }).map((_, index) => {
-    const date = new Date(start.getTime() + index * 86400000);
-    return {
-      day: index + 1,
-      title: dayTitles[index % dayTitles.length],
-      date: date.toISOString().slice(0, 10),
-      items:
-      index === 0 ?
-      [
-      { time: '09:00', title: 'Arrival', location: `${match.name} Airport`, duration: '1 hr', cost: 0, rating: 4.4, distanceKm: 0, kind: 'travel' as const },
-      { time: '10:30', title: 'Hotel check-in', location: 'Boutique stay, city centre', duration: '45 min', cost: Math.round(stay / totalDays), rating: 4.6, distanceKm: 12.4, kind: 'stay' as const },
-      { time: '13:00', title: 'Lunch at a local favourite', location: restaurants[0].name, duration: '1 hr', cost: 900, rating: 4.8, distanceKm: 2.4, kind: 'food' as const },
-      { time: '15:00', title: activities[1].name, location: activities[1].location, duration: activities[1].duration, cost: activities[1].price, rating: activities[1].rating, distanceKm: 3.1, kind: 'activity' as const },
-      { time: '19:00', title: 'Dinner by the water', location: restaurants[1].name, duration: '1.5 hrs', cost: 650, rating: 4.6, distanceKm: 3.9, kind: 'food' as const }] :
-
-      [
-      { time: '08:00', title: 'Breakfast at the stay', location: 'Hotel terrace', duration: '45 min', cost: 350, rating: 4.5, distanceKm: 0, kind: 'food' as const },
-      { time: '09:30', title: activities[(index + 2) % activities.length].name, location: activities[(index + 2) % activities.length].location, duration: activities[(index + 2) % activities.length].duration, cost: activities[(index + 2) % activities.length].price, rating: activities[(index + 2) % activities.length].rating, distanceKm: 6.2, kind: 'activity' as const },
-      { time: '13:00', title: 'Lunch', location: restaurants[(index + 1) % restaurants.length].name, duration: '1 hr', cost: restaurants[(index + 1) % restaurants.length].pricePerPerson, rating: restaurants[(index + 1) % restaurants.length].rating, distanceKm: 2.8, kind: 'food' as const },
-      { time: '16:00', title: activities[(index + 4) % activities.length].name, location: activities[(index + 4) % activities.length].location, duration: activities[(index + 4) % activities.length].duration, cost: activities[(index + 4) % activities.length].price, rating: activities[(index + 4) % activities.length].rating, distanceKm: 4.5, kind: 'activity' as const },
-      { time: '19:30', title: 'Dinner', location: restaurants[(index + 3) % restaurants.length].name, duration: '1.5 hrs', cost: restaurants[(index + 3) % restaurants.length].pricePerPerson, rating: restaurants[(index + 3) % restaurants.length].rating, distanceKm: 5.1, kind: 'food' as const }]
-
-    };
-  });
-  const itineraryDays = days.map((day) => ({
-    ...day,
-    day_number: day.day,
-    activities: day.items.map((item) => ({
-      time: item.time,
-      description: item.title,
-      location: item.location
-    }))
-  }));
-
-  return {
-    id: uid('plan'),
-    title: `Trip to ${match.name}`,
-    destination: match.name,
-    country: match.country,
-    image: match.image,
-    startDate: prefs.startDate || start.toISOString().slice(0, 10),
-    endDate: prefs.endDate || new Date(start.getTime() + (totalDays - 1) * 86400000).toISOString().slice(0, 10),
-    start_date: prefs.startDate || start.toISOString().slice(0, 10),
-    end_date: prefs.endDate || new Date(start.getTime() + (totalDays - 1) * 86400000).toISOString().slice(0, 10),
-    travelers: travellers,
-    budget,
-    estimatedCost,
-    breakdown: [
-    { label: 'Accommodation', value: stay },
-    { label: 'Travel', value: travel },
-    { label: 'Food', value: food },
-    { label: 'Activities', value: acts }],
-
-    weather: [
-    { day: 'Mon', temp: 29, condition: 'Sunny' },
-    { day: 'Tue', temp: 28, condition: 'Partly cloudy' },
-    { day: 'Wed', temp: 27, condition: 'Light rain' },
-    { day: 'Thu', temp: 30, condition: 'Sunny' },
-    { day: 'Fri', temp: 29, condition: 'Clear' }],
-
-    days: itineraryDays,
-
-    reasoning: [
-    { title: 'Matches your interests', detail: `${prefs.interests.slice(0, 3).join(', ') || 'Nature, Food'} appear in 8 of the 12 scheduled stops.` },
-    { title: 'Fits your budget', detail: `Planned spend is ${Math.round(estimatedCost / budget * 100)}% of your stated budget, leaving a buffer for extras.` },
-    { title: 'Highly rated by travellers', detail: 'Every activity holds a 4.5+ rating across more than 400 recent reviews.' },
-    { title: 'Close to your accommodation', detail: 'Average travel time between stops is 14 minutes.' },
-    { title: 'Lower expected crowd levels', detail: 'Morning slots were chosen where community reports flag afternoon crowding.' },
-    { title: 'Suitable for your preferences', detail: `${prefs.accessibility.length ? prefs.accessibility.join(', ') + ' needs were applied.' : 'Pace kept moderate with rest gaps after long transfers.'}` },
-    { title: 'Fits the available time', detail: 'The constraint solver kept each day under 9 active hours including travel.' }]
-
-  };
-}
-
 /** POST /assistant/message  → POST /api/chat (FastAPI + Groq) */
 interface GeneratedItineraryDay {
   day_number: number;
@@ -678,6 +620,12 @@ interface GeneratedItineraryDay {
 
 interface GeneratedTripResponse {
   id: string;
+  boarding_location?: {
+    name: string;
+    display_name: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
   title: string;
   destination: string;
   start_date: string;
@@ -689,7 +637,6 @@ interface GeneratedTripResponse {
 }
 
 function mapGeneratedTrip(response: GeneratedTripResponse, fallbackBudget: number): TripPlan {
-  const match = destinations.find((destination) => destination.name.toLowerCase() === response.destination.toLowerCase());
   const budget = response.budget ?? fallbackBudget;
   const days = response.itinerary_days.map((day) => {
     const activities = (day.description ?? '').split('\n').filter(Boolean).map((line) => {
@@ -718,8 +665,6 @@ function mapGeneratedTrip(response: GeneratedTripResponse, fallbackBudget: numbe
         location: activity.location,
         duration: 'Flexible',
         cost: activity.estimated_cost,
-        rating: 0,
-        distanceKm: 0,
         kind: CATEGORY_TO_KIND[activity.category]
       }))
     };
@@ -739,8 +684,9 @@ function mapGeneratedTrip(response: GeneratedTripResponse, fallbackBudget: numbe
     id: response.id,
     title: response.title,
     destination: response.destination,
-    country: match?.country ?? '',
-    image: match?.image ?? IMAGES.goa,
+    country: '',
+    // Resolved per destination by DestinationImage; never another place's photo.
+    image: '',
     startDate: response.start_date,
     endDate: response.end_date,
     start_date: response.start_date,
@@ -756,17 +702,100 @@ function mapGeneratedTrip(response: GeneratedTripResponse, fallbackBudget: numbe
       { label: 'Food', value: sumByCategory('food') },
       { label: 'Activities', value: sumByCategory('activity') }
     ],
-    weather: [],
     days,
     reasoning: [{ title: 'Generated by ATLAS', detail: 'This itinerary was generated and saved to your account.' }],
     is_realtime_data: response.data_context?.is_realtime_data === false ? false : undefined,
-    data_context: response.data_context
+    data_context: response.data_context,
+    boardingLocation: response.boarding_location
+      ? {
+          name: response.boarding_location.name,
+          displayName: response.boarding_location.display_name,
+          latitude: response.boarding_location.latitude,
+          longitude: response.boarding_location.longitude
+        }
+      : null
   };
 }
 
+/**
+ * GET /api/trips/:id/route — the trip's canonical ordered stops and real legs.
+ *
+ * Fetched separately from the itinerary because geocoding runs at one request
+ * per second: the timeline renders immediately and travel metadata fills in.
+ *
+ * Routing failures arrive as a 200 with `routing_available: false` on each
+ * leg, so the caller shows an explicit unavailable state — never 0 km.
+ */
+export async function fetchTripRoute(tripId: string, token: string): Promise<TripRoute> {
+  const data = await apiRequest<{
+    trip_id: string;
+    stops: Array<{
+      index: number; label: string; query: string;
+      latitude: number | null; longitude: number | null;
+      is_boarding: boolean; resolved: boolean;
+    }>;
+    legs: Array<{
+      from_index: number; to_index: number;
+      distance_km: number | null; duration_minutes: number | null;
+      routing_available: boolean;
+    }>;
+    unavailable_reason: string | null;
+  }>(`/api/trips/${encodeURIComponent(tripId)}/route`, {}, token);
+
+  return {
+    tripId: data.trip_id,
+    stops: data.stops.map((stop) => ({
+      index: stop.index,
+      label: stop.label,
+      query: stop.query,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      isBoarding: stop.is_boarding,
+      resolved: stop.resolved
+    })),
+    legs: data.legs.map((leg) => ({
+      fromIndex: leg.from_index,
+      toIndex: leg.to_index,
+      distanceKm: leg.distance_km,
+      durationMinutes: leg.duration_minutes,
+      routingAvailable: leg.routing_available
+    })),
+    unavailableReason: data.unavailable_reason
+  };
+}
+
+/**
+ * GET /api/locations/search — place suggestions for the boarding-location field.
+ *
+ * Goes through ATLAS rather than straight to Nominatim so one User-Agent and
+ * one rate limiter sit in front of the geocoder, as its usage policy requires.
+ */
+export async function searchLocations(query: string, token: string): Promise<LocationSuggestion[]> {
+  const data = await apiRequest<{
+    results: Array<{ name: string; display_name: string; latitude: number; longitude: number }>;
+    unavailable_reason: string | null;
+  }>(`/api/locations/search?q=${encodeURIComponent(query)}`, {}, token);
+
+  return data.results.map((item) => ({
+    name: item.name,
+    displayName: item.display_name,
+    latitude: item.latitude,
+    longitude: item.longitude
+  }));
+}
+
+/**
+ * POST /api/trips/generate.
+ *
+ * Requires a signed-in account. The previous signed-out branch returned a
+ * fabricated itinerary — invented stops, costs and travel-time claims — with
+ * no provenance flag, so it rendered identically to a real AI plan.
+ */
 export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripPlan> {
   const token = localStorage.getItem('atlas_access_token');
-  if (!token) return generateMockTripPlan(prefs);
+  if (!token) {
+    throw new Error('Sign in to generate a trip. ATLAS saves your itinerary to your account.');
+  }
 
   const response = await apiRequest<GeneratedTripResponse>('/api/trips/generate', {
     method: 'POST',
@@ -776,6 +805,16 @@ export async function generateTripPlan(prefs: PlannerPreferences): Promise<TripP
       end_date: prefs.endDate,
       budget: prefs.budget,
       travelers: Math.max(1, prefs.adults + prefs.children),
+      // The backend re-geocodes this by name rather than trusting coordinates
+      // from the browser, and rejects the trip if it cannot place it.
+      boarding_location: prefs.boardingLocation
+        ? {
+            name: prefs.boardingLocation.name,
+            latitude: prefs.boardingLocation.latitude,
+            longitude: prefs.boardingLocation.longitude,
+            display_name: prefs.boardingLocation.displayName
+          }
+        : null,
       preferences: {
         interests: prefs.interests,
         transport: prefs.transport,
@@ -860,7 +899,56 @@ export async function sendAssistantMessage(text: string): Promise<ChatMessage> {
 
 
 /** POST /lost-found */
-export async function submitLostFound(item: Omit<LostFoundItem, 'id' | 'status'>): Promise<LostFoundItem> {
-  await latency(700);
-  return { ...item, id: uid('lf'), status: 'Open' };
+/** Maps a persisted report onto the shape the board already renders. */
+function mapLostFound(report: {
+  id: string;title: string;report_type: 'lost' | 'found';category: string;location: string;
+  reported_date: string;description: string;image_url: string | null;contact: string;status: string;
+}): LostFoundItem {
+  return {
+    id: report.id,
+    title: report.title,
+    type: report.report_type,
+    category: report.category,
+    location: report.location,
+    date: report.reported_date,
+    description: report.description,
+    // Photos are served from the backend, so prefix the stored path.
+    image: report.image_url ? `${apiUrl}${report.image_url}` : '',
+    // A traveller's own photo of their own item — never a stand-in.
+    isRepresentative: false,
+    status: report.status as LostFoundItem['status'],
+    contact: report.contact
+  };
+}
+
+/** GET /api/lost-found — the shared community board. */
+export async function fetchLostFoundReports(token: string): Promise<LostFoundItem[]> {
+  const data = await apiRequest<Parameters<typeof mapLostFound>[0][]>('/api/lost-found', {}, token);
+  return data.map(mapLostFound);
+}
+
+export async function submitLostFound(
+  item: Omit<LostFoundItem, 'id' | 'status'>,
+  token: string
+): Promise<LostFoundItem> {
+  const created = await apiRequest<Parameters<typeof mapLostFound>[0]>(
+    '/api/lost-found',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        title: item.title,
+        report_type: item.type,
+        category: item.category,
+        location: item.location,
+        reported_date: item.date,
+        description: item.description,
+        contact: item.contact,
+        // The backend writes this to disk and stores only the path, so image
+        // bytes never end up in a database row.
+        image_data_url: item.image || null
+      })
+    },
+    token
+  );
+  return mapLostFound(created);
 }

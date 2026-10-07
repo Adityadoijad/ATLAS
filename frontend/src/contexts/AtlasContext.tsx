@@ -10,6 +10,7 @@ import {
   fetchCurrentUser,
   fetchPersistedSavedPlaces,
   cancelPersistedBooking,
+  fetchLostFoundReports,
   fetchPersistedBookings,
   fetchPersistedTrips,
   loginUser,
@@ -98,14 +99,16 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
       fetchPersistedSavedPlaces(token),
       // Signed-in users see their own persisted bookings; the seeded demo
       // list is only what a signed-out visitor sees.
-      fetchPersistedBookings(token).catch(() => [])
+      fetchPersistedBookings(token).catch(() => []),
+      fetchLostFoundReports(token).catch(() => [])
     ])
-      .then(([user, persistedTrips, persistedPlaces, persistedBookings]) => {
+      .then(([user, persistedTrips, persistedPlaces, persistedBookings, persistedReports]) => {
         setAuthUser(user);
         setTrips(persistedTrips);
         setSavedItems(persistedPlaces);
         setSaved(persistedPlaces.map((place) => place.id));
         setBookings(persistedBookings);
+        setLostFound(persistedReports);
       })
       .catch(() => {
         localStorage.removeItem('atlas_access_token');
@@ -115,17 +118,19 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
 
   const initializeSession = useCallback(async (token: string) => {
     localStorage.setItem('atlas_access_token', token);
-    const [user, persistedTrips, persistedPlaces, persistedBookings] = await Promise.all([
+    const [user, persistedTrips, persistedPlaces, persistedBookings, persistedReports] = await Promise.all([
       fetchCurrentUser(token),
       fetchPersistedTrips(token),
       fetchPersistedSavedPlaces(token),
-      fetchPersistedBookings(token).catch(() => [])
+      fetchPersistedBookings(token).catch(() => []),
+      fetchLostFoundReports(token).catch(() => [])
     ]);
     setAuthUser(user);
     setTrips(persistedTrips);
     setSavedItems(persistedPlaces);
     setSaved(persistedPlaces.map((place) => place.id));
     setBookings(persistedBookings);
+    setLostFound(persistedReports);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -147,6 +152,7 @@ export function AtlasProvider({ children }: {children: React.ReactNode;}) {
     // Back to the signed-out demo list, so one user's bookings never linger
     // on screen for the next person to sign in.
     setBookings(seedBookings);
+    setLostFound(seedLostFound);
     setPlan(null);
   }, []);
 

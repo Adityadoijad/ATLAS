@@ -8,7 +8,9 @@ import { useAtlas } from '../../contexts/AtlasContext';
 export function Hero() {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
-  const { toast } = useAtlas();
+  const { toast, authUser } = useAtlas();
+  // Absent on the public home page, which is the honest case for a visitor.
+  const firstName = authUser?.name?.trim().split(/\s+/)[0];
 
   const search = (value: string) => {
     const term = value.trim();
@@ -39,7 +41,7 @@ export function Hero() {
               transition={{ delay: 0.05 }}
               className="mt-6 font-display text-[38px] font-extrabold leading-[1.05] text-ink sm:text-5xl lg:text-[56px]">
               
-              Hello, Explorer! <span aria-hidden>👋</span>
+              {firstName ? `Hello, ${firstName}!` : 'Hello there!'} <span aria-hidden>👋</span>
             </motion.h1>
             <motion.h2
               initial={{ opacity: 0, y: 14 }}
@@ -109,7 +111,7 @@ export function Hero() {
               className="absolute bottom-5 right-5 w-[210px] rounded-2xl border border-line bg-surface/95 p-4 shadow-lift backdrop-blur">
               
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">Live agents</p>
-              <p className="mt-1.5 text-[13px] font-semibold text-ink">9 agents ready</p>
+              <p className="mt-1.5 text-[13px] font-semibold text-ink">Agents ready</p>
               <p className="mt-1 text-[12px] leading-relaxed text-muted">
                 Travel · Hotel · Food · Weather · Maps · Reviews
               </p>

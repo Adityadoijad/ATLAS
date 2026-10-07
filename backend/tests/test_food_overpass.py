@@ -443,7 +443,7 @@ def test_planner_context_reports_food_live_alongside_other_agents(monkeypatch) -
     async def fake_ai_plan(_request):
         return GeneratedTripPlanSchema(
             title="Manali trip", destination="Manali",
-            start_date="2026-12-10", end_date="2026-12-12", total_budget=25000,
+            start_date="2026-12-10", end_date="2026-12-10", total_budget=25000,
             days=[DayPlanSchema(day_number=1, date="2026-12-10", title="Day", activities=[
                 ActivitySchema(time="09:00", description="Eat", location="Manali",
                                estimated_cost=500, category="food"),
@@ -479,7 +479,7 @@ def test_planner_still_produces_an_itinerary_when_food_is_degraded(monkeypatch) 
     async def fake_ai_plan(_request):
         return GeneratedTripPlanSchema(
             title="Manali trip", destination="Manali",
-            start_date="2026-12-10", end_date="2026-12-12", total_budget=25000,
+            start_date="2026-12-10", end_date="2026-12-10", total_budget=25000,
             days=[DayPlanSchema(day_number=1, date="2026-12-10", title="Day", activities=[
                 ActivitySchema(time="09:00", description="Eat", location="Manali",
                                estimated_cost=500, category="food"),

@@ -1,7 +1,7 @@
 # ATLAS Project Progress
 
-**Last reviewed:** 9 September 2026
-**Review method:** Read the project PRDs and completion reports, inspected every tracked source and scaffold directory, reviewed the current working tree, and ran local build, compile, import, health-check, and test-discovery commands.
+**Last reviewed:** 8 October 2026
+**Review method:** Reviewed the current worktree changes and ran backend/frontend tests, frontend type-check, production build, lint, whitespace validation, and a credential-pattern scan of intended source files.
 
 ## Overall status
 
@@ -144,3 +144,41 @@ The repository also contains **uncommitted Google OAuth work in progress**. The 
 4. `Trips → View Trip` button has no action.
 5. Nothing is deployed yet (Render/Neon/Vercel unverified).
 6. Rotate the Groq API key before making the repo public.
+
+# Update — 8 October 2026
+
+> This update records the latest completed work and supersedes the earlier
+> remaining-task list where features below have since been implemented.
+
+## What we did
+
+### Live destination and trip data
+- Added authenticated backend endpoints for destination weather forecasts, place search/geocoding, and trip routing; provider failures return explicit unavailable states instead of fabricated weather or travel times.
+- Expanded weather integration with destination-local forecast dates, the provider's five-day horizon, caching, circuit-breaker handling, and sanitized provider errors.
+- Added rate-limited/cached Nominatim location resolution and OSRM route legs so itinerary times and distances come from real providers rather than AI-generated estimates.
+- Planner requests now support a persisted boarding location, enforce inclusive calendar-day coverage, and ask for identifiable real places; itinerary timeline and route data share the same ordered stops.
+- Wired updated destination, exploration, activity, food, dashboard, planner, and itinerary screens to typed API data, including real-place cards and destination imagery with source attribution.
+
+### Lost & Found and reliability
+- Lost & Found reports are now stored in PostgreSQL, available on the shared authenticated board, and deletable only by their owner. Uploaded photos are validated and stored as runtime files, not database blobs.
+- Improved booking confirmation email delivery timeouts and credential-error guidance while keeping recipient addresses masked in logs.
+- Added two Alembic migrations for Lost & Found reports and trip boarding locations, plus backend and frontend tests for these flows and the route/weather/date utilities.
+
+## Current state
+
+| Check | Result |
+| --- | --- |
+| Backend tests | 388 passed |
+| Frontend tests | 89 passed |
+| TypeScript | Clean (`npx tsc --noEmit`) |
+| Production build | Passed (`npm run build`) |
+| ESLint | 0 errors, 3 warnings |
+| Diff/credential checks | Clean; no common API-key/private-key patterns in intended source files |
+
+No live external-provider or production deployment smoke test was performed in this update.
+
+## Still to do
+
+1. Apply and verify the new migrations against the deployment PostgreSQL database; configure durable storage for uploaded Lost & Found photos.
+2. Smoke-test live weather, routing, geocoding, AI, and SMTP behavior with deployment configuration.
+3. Complete deployment verification and review any remaining placeholder data or unfinished UI actions.

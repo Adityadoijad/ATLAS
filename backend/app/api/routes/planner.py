@@ -7,8 +7,10 @@ from app.core.rate_limit import ai_rate_limiter
 from app.models.itinerary import ItineraryDay
 from app.models.trip import Trip
 from app.models.user import User
-from app.schemas.planner import PlannerRequest
+from app.schemas.planner import BoardingLocation, PlannerRequest
 from app.schemas.trip import TripResponse
+from app.services.integrations.maps import GeocodingUnavailable, geocode_place
+from app.services.place_resolver import verify_plan_locations
 from app.services.planner import PlannerResult, generate_trip_plan
 from app.services.planner_service import (
     PlannerConfigurationError,
@@ -18,6 +20,49 @@ from app.services.planner_service import (
 )
 
 router = APIRouter(prefix="/trips", tags=["planner"])
+
+
+async def _resolve_boarding_location(boarding: BoardingLocation | None) -> BoardingLocation:
+    """Turn the typed starting point into coordinates, or refuse the trip.
+
+    Three outcomes, deliberately distinct:
+      * not supplied      -> 422, because the first route leg has no origin
+                             and the alternatives (destination centre, first
+                             hotel, browser location) would all be guesses
+                             presented as the user's own choice;
+      * geocoder says no  -> 422 naming what was typed, so it can be corrected;
+      * geocoder is down  -> 503, a temporary condition worth retrying, never
+                             a silent substitution.
+    """
+    if boarding is None or not boarding.name.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="A boarding location is required so the itinerary can start where your journey does.",
+        )
+
+    try:
+        resolved = await geocode_place(boarding.name)
+    except GeocodingUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="The location service is unavailable right now, so your starting point could not be confirmed. Please try again shortly.",
+        ) from exc
+
+    if resolved is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"We could not find a place called {boarding.name.strip()!r}. "
+                "Try a more specific starting point, such as a station, airport or full address."
+            ),
+        )
+
+    return BoardingLocation(
+        name=boarding.name.strip(),
+        display_name=str(resolved["display_name"]),
+        latitude=float(resolved["latitude"]),
+        longitude=float(resolved["longitude"]),
+    )
 
 
 @router.post("/generate", response_model=TripResponse, status_code=status.HTTP_201_CREATED)
@@ -36,6 +81,11 @@ async def generate_and_save_trip(
     )
     if request.end_date < request.start_date:
         raise HTTPException(status_code=422, detail="end_date must not be before start_date")
+
+    boarding = await _resolve_boarding_location(request.boarding_location)
+    # The planner sees the resolved location, so the prompt and the route agree
+    # on which place the trip starts from.
+    request = request.model_copy(update={"boarding_location": boarding})
 
     try:
         generated: PlannerResult = await generate_trip_plan(request)
@@ -56,6 +106,15 @@ async def generate_and_save_trip(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     plan = generated.plan
+
+    # Check the planner actually named real places, and repair the ones a safe
+    # deterministic edit can rescue. This mutates `plan` before it is written,
+    # so the traveller sees names ATLAS can find — and it warms the geocoder
+    # cache, so the route endpoint answers immediately afterwards. An
+    # unresolvable name is left exactly as written: its travel time reports as
+    # unavailable rather than being filled in with a guess.
+    resolution = await verify_plan_locations(plan, request.destination, boarding.name)
+    data_context = {**generated.data_context, "places": resolution.as_dict()}
 
     if plan.start_date != request.start_date or plan.end_date != request.end_date:
         raise HTTPException(status_code=502, detail="The AI planner returned dates outside the requested trip.")
@@ -78,7 +137,8 @@ async def generate_and_save_trip(
             status="upcoming",
             # Recorded now so a later e-ticket can state honestly which parts
             # were live data and which were AI estimates.
-            data_context=generated.data_context,
+            data_context=data_context,
+            boarding_location=boarding.model_dump(),
         )
         db.add(trip)
         db.flush()
@@ -99,5 +159,5 @@ async def generate_and_save_trip(
             ))
 
     db.refresh(trip)
-    trip.data_context = generated.data_context
+    trip.data_context = data_context
     return trip

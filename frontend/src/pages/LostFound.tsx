@@ -60,27 +60,42 @@ export function LostFoundPage() {
     setErrors(next);
     if (Object.keys(next).length > 0 || !formType) return;
 
+    const token = localStorage.getItem('atlas_access_token');
+    if (!token) {
+      toast({ title: 'Sign in to report an item', description: 'Reports are saved to your account.', tone: 'error' });
+      return;
+    }
+
     setSubmitting(true);
-    const created: LostFoundItem = await submitLostFound({
-      title: form.title,
-      type: formType,
-      category: form.category,
-      location: form.location,
-      date: form.date,
-      description: form.description || 'No additional description provided.',
-      // The reporter's own photo, or nothing at all. Never a stand-in picture
-      // of some other object — on a lost-and-found board that invites people
-      // to "recognise" an item that was never theirs.
-      image: photo,
-      isRepresentative: false,
-      contact: form.contact
-    });
-    addLostFound(created);
-    setSubmitting(false);
-    setFormType(null);
-    setForm({ title: '', category: 'Electronics', location: '', date: '', description: '', contact: 'In-app message' });
-    setPhoto('');
-    toast({ title: 'Report submitted', description: 'Travellers in this area will be notified.', tone: 'success' });
+    try {
+      const created: LostFoundItem = await submitLostFound({
+        title: form.title,
+        type: formType,
+        category: form.category,
+        location: form.location,
+        date: form.date,
+        description: form.description || 'No additional description provided.',
+        // The reporter's own photo, or nothing at all. Never a stand-in picture
+        // of some other object — on a lost-and-found board that invites people
+        // to "recognise" an item that was never theirs.
+        image: photo,
+        isRepresentative: false,
+        contact: form.contact
+      }, token);
+      addLostFound(created);
+      setFormType(null);
+      setForm({ title: '', category: 'Electronics', location: '', date: '', description: '', contact: 'In-app message' });
+      setPhoto('');
+      toast({ title: 'Report submitted', description: 'Your report is now on the board.', tone: 'success' });
+    } catch (reason) {
+      toast({
+        title: 'Could not submit the report',
+        description: reason instanceof Error ? reason.message : 'Please try again.',
+        tone: 'error'
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

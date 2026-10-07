@@ -205,8 +205,7 @@ export const trips: Trip[] = [
   endDate: '2026-09-16',
   travelers: 2,
   budget: 48000,
-  status: 'upcoming',
-  progress: 80
+  status: 'upcoming'
 },
 {
   id: 't2',
@@ -217,8 +216,7 @@ export const trips: Trip[] = [
   endDate: '2026-11-10',
   travelers: 2,
   budget: 45000,
-  status: 'upcoming',
-  progress: 35
+  status: 'upcoming'
 },
 {
   id: 't3',
@@ -229,8 +227,7 @@ export const trips: Trip[] = [
   endDate: '2026-03-13',
   travelers: 4,
   budget: 62000,
-  status: 'past',
-  progress: 100
+  status: 'past'
 },
 {
   id: 't4',
@@ -241,8 +238,7 @@ export const trips: Trip[] = [
   endDate: '2025-12-26',
   travelers: 3,
   budget: 88000,
-  status: 'past',
-  progress: 100
+  status: 'past'
 },
 {
   id: 't5',
@@ -253,8 +249,7 @@ export const trips: Trip[] = [
   endDate: '2027-06-21',
   travelers: 2,
   budget: 96000,
-  status: 'saved',
-  progress: 15
+  status: 'saved'
 }];
 
 

@@ -72,9 +72,48 @@ export interface DiscoverIndiaRecommendation {
 
 export interface WeatherForecastEntry {
   timestamp: string;
+  /**
+   * Computed by the backend on the destination's local calendar. Deriving it
+   * from `timestamp` in the browser would shift the label a day for any viewer
+   * west of UTC, since a date-only string parses as UTC midnight.
+   */
+  weekday: string | null;
   temperatureC: number;
   condition: string;
   icon: string | null;
+}
+
+/** One day of forecast, on the destination's own local calendar. */
+export interface ForecastDay {
+  date: string;
+  weekday: string;
+  temperatureC: number;
+  temperatureMinC: number;
+  temperatureMaxC: number;
+  condition: string | null;
+  icon: string | null;
+  /** 3-hourly provider steps behind this day; fewer means partial coverage. */
+  stepCount: number;
+  localTimeOfSummary: string;
+}
+
+/**
+ * GET /api/weather/forecast.
+ *
+ * `isRealtimeData: false` means there is no weather to show and `days` is
+ * empty — there is deliberately no estimated alternative in this shape,
+ * because inventing one is the thing the whole pipeline is built to avoid.
+ */
+export interface DestinationForecast {
+  destination: string;
+  isRealtimeData: boolean;
+  resolvedDestination: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  localDate: string | null;
+  forecastThrough: string | null;
+  days: ForecastDay[];
+  unavailableReason: string | null;
 }
 
 export interface DestinationWeather {
@@ -160,7 +199,8 @@ export interface Trip {
   travelers: number;
   budget: number;
   status: TripStatus;
-  progress: number;
+  /** When the trip was saved. Drives the dashboard's real activity feed. */
+  createdAt?: string;
 }
 
 export type BookingStatus = 'upcoming' | 'completed' | 'cancelled';
@@ -175,6 +215,8 @@ export interface Booking {
   price: number;
   status: BookingStatus;
   travelers: number;
+  /** When the booking was made. Drives the dashboard's real activity feed. */
+  createdAt?: string;
   /**
    * True when the booking exists server-side and can therefore issue an
    * e-ticket. Seeded demo bookings and signed-out bookings have no server
@@ -227,9 +269,56 @@ export interface ItineraryItem {
   location: string;
   duration: string;
   cost: number;
-  rating: number;
-  distanceKm: number;
   kind: 'travel' | 'stay' | 'food' | 'activity';
+}
+
+/** Where the traveller's journey begins. Null on trips planned before this existed. */
+export interface BoardingLocation {
+  name: string;
+  displayName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** One stop on the trip's canonical route, in visiting order. */
+export interface RouteStop {
+  index: number;
+  label: string;
+  query: string;
+  latitude: number | null;
+  longitude: number | null;
+  isBoarding: boolean;
+  resolved: boolean;
+}
+
+/**
+ * Travel between two consecutive stops.
+ *
+ * `distanceKm` and `durationMinutes` are null together when routing could not
+ * answer. They are never 0 as a stand-in — 0 means the two stops are the same
+ * place, and using it for "unknown" would claim a journey takes no time.
+ */
+export interface RouteLeg {
+  fromIndex: number;
+  toIndex: number;
+  distanceKm: number | null;
+  durationMinutes: number | null;
+  routingAvailable: boolean;
+}
+
+/** The one ordered sequence the itinerary timeline and the map both render. */
+export interface TripRoute {
+  tripId: string;
+  stops: RouteStop[];
+  legs: RouteLeg[];
+  unavailableReason: string | null;
+}
+
+export interface LocationSuggestion {
+  name: string;
+  displayName: string;
+  latitude: number;
+  longitude: number;
 }
 
 export interface ItineraryDay {
@@ -262,15 +351,17 @@ export interface TripPlan {
   budget: number;
   estimatedCost: number;
   breakdown: {label: string;value: number;}[];
-  weather: {day: string;temp: number;condition: string;}[];
   days: ItineraryDay[];
   reasoning: {title: string;detail: string;}[];
   is_realtime_data?: boolean;
   data_context?: Record<string, unknown>;
+  boardingLocation: BoardingLocation | null;
 }
 
 export interface PlannerPreferences {
   destination: string;
+  /** Required for new trips; the itinerary's first leg originates here. */
+  boardingLocation: LocationSuggestion | null;
   startDate: string;
   endDate: string;
   adults: number;

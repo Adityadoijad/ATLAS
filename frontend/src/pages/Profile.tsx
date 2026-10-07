@@ -5,7 +5,15 @@ import { useAtlas } from '../contexts/AtlasContext';
 import { languages } from '../data/content';
 import { useTranslation } from 'react-i18next';
 
-const defaultPreferences = {
+/**
+ * Starting values for the preference controls.
+ *
+ * ATLAS has no preferences API, so nothing here is loaded from or written to
+ * the account — these are the form's initial positions, not the traveller's
+ * saved choices. The UI says so rather than presenting them as settings that
+ * were retrieved and will be applied.
+ */
+const initialPreferences = {
   travelStyle: 'Balanced explorer',
   language: 'English',
   food: 'Vegetarian',
@@ -31,7 +39,7 @@ export function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [profile, setProfile] = useState(() => buildProfileFromAuthUser(authUser));
   const [draft, setDraft] = useState(() => buildProfileFromAuthUser(authUser));
-  const [preferences, setPreferences] = useState(defaultPreferences);
+  const [preferences, setPreferences] = useState(initialPreferences);
 
   // Re-sync whenever the signed-in account changes (authUser loading in after
   // first render, or switching accounts via Google sign-in). Name and email are
@@ -55,14 +63,20 @@ export function ProfilePage() {
     }
     setProfile(draft);
     setEditing(false);
-    toast({ title: t('profile.updated'), tone: 'success' });
+    // No profile endpoint exists, so nothing was written to the account. Say
+    // that plainly rather than reporting a save that did not happen.
+    toast({
+      title: 'Updated on this device',
+      description: 'ATLAS cannot save profile changes to your account yet — your name and email still come from your sign-in.',
+      tone: 'info'
+    });
   };
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="font-display text-3xl font-bold text-ink">{t('pages.profile')}</h1>
-        <p className="mt-1.5 text-[15px] text-muted">Your account details and the preferences ATLAS plans around.</p>
+        <p className="mt-1.5 text-[15px] text-muted">Your account details, and planning preferences for this session.</p>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[300px_1fr]">
@@ -144,6 +158,9 @@ export function ProfilePage() {
 
           <Card className="p-6">
             <h2 className="text-[15px] font-bold text-ink">{t('profile.preferences')}</h2>
+            <p className="mt-1 text-[12.5px] text-muted">
+              Not saved to your account. The planner asks for these per trip.
+            </p>
             <p className="mt-1 text-[13px] text-muted">These feed directly into the Planner Agent on every new trip.</p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label={t('profile.travelStyle')} htmlFor="tp-style">
@@ -202,7 +219,7 @@ export function ProfilePage() {
                 </Select>
               </Field>
             </div>
-            <Button className="mt-6" onClick={() => toast({ title: 'Preferences saved', description: 'Future plans will use these settings.', tone: 'success' })}>
+            <Button className="mt-6" onClick={() => toast({ title: 'Applied for this session', description: 'Preferences are not stored on your account yet; set them in the planner for each trip.', tone: 'info' })}>
               {t('profile.savePreferences')}
             </Button>
           </Card>

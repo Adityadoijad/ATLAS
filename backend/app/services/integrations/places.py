@@ -61,7 +61,13 @@ async def get_activities(latitude: float, longitude: float, limit: int = 8) -> l
                 results.append({
                     "name": name,
                     "category": kinds[0].replace("_", " ").title() if kinds and kinds[0] else None,
-                    "rating": item.get("rate"),
+                    # Deliberately None, not `item["rate"]`. OpenTripMap's `rate`
+                    # is a 1-7 popularity/importance tier, not a star rating, and
+                    # the UI renders `rating` beside a star. Passing it through
+                    # put "1.0" next to a star on genuine landmarks, which reads
+                    # as one star out of five. There is no real rating source
+                    # here, so there is no rating.
+                    "rating": None,
                     "address": None,
                     "latitude": item_lat,
                     "longitude": item_lon,

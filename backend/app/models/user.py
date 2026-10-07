@@ -18,4 +18,5 @@ class User(Base):
     trips = relationship("Trip", back_populates="user", cascade="all, delete-orphan")
     saved_places = relationship("SavedPlace", back_populates="user", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="user", cascade="all, delete-orphan")
+    lost_found_reports = relationship("LostFoundReport", back_populates="user", cascade="all, delete-orphan")
 

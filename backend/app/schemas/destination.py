@@ -6,6 +6,10 @@ class ForecastEntrySchema(BaseModel):
     temperature_c: float
     condition: str
     icon: str | None = None
+    # Computed on the destination's local calendar. The browser must not derive
+    # it from `timestamp`: a date-only string parses as UTC midnight, so any
+    # viewer west of UTC would be shown the previous weekday.
+    weekday: str | None = None
 
 
 class WeatherDetailSchema(BaseModel):
@@ -47,3 +51,19 @@ class DestinationDetailsSchema(BaseModel):
     activities_unavailable_reason: str | None = None
     restaurants: list[PlaceSchema] = []
     restaurants_unavailable_reason: str | None = None
+
+
+class DestinationPhotoSchema(BaseModel):
+    """A real photograph of a destination, or an honest absence.
+
+    Every field is nullable together. `url` of None means no genuine photo of
+    this place was found — the UI then draws a neutral placeholder rather than
+    a picture of somewhere else, which is the bug this endpoint exists to end.
+    """
+
+    destination: str
+    url: str | None = None
+    source: str | None = None
+    source_url: str | None = None
+    author: str | None = None
+    license: str | None = None

@@ -23,6 +23,7 @@ def test_trip_generate_maps_provider_quota_exhaustion_to_structured_429(client: 
             "start_date": "2026-12-10",
             "end_date": "2026-12-11",
             "budget": 10000,
+            "boarding_location": {"name": "Nagpur Railway Station"},
         },
         headers=auth(user_a_token),
     )
@@ -70,6 +71,7 @@ def test_trip_generate_maps_missing_api_key_to_503(client: TestClient, user_a_to
             "start_date": "2026-12-10",
             "end_date": "2026-12-11",
             "budget": 10000,
+            "boarding_location": {"name": "Nagpur Railway Station"},
         },
         headers=auth(user_a_token),
     )

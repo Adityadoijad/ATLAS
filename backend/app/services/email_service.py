@@ -27,7 +27,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS = 20
+# Connect, TLS and auth against Gmail measure ~2s; the rest is uploading the
+# e-ticket attachment, which took ~25s on a real send from a domestic
+# connection. A 20s socket budget left almost no margin, so a correctly
+# configured sender could still fail intermittently on a slower link.
+_TIMEOUT_SECONDS = 45
+
+# Outer ceiling for the whole send, including PDF handover. Kept above the
+# socket budget so a stalled transfer surfaces as a socket error (which names
+# the cause) rather than a bare timeout.
+_OVERALL_TIMEOUT_SECONDS = 60
 
 
 class EmailNotConfiguredError(RuntimeError):
@@ -65,6 +74,26 @@ def mask_email(address: str) -> str:
         return "***"
     head = local[:2] if len(local) > 2 else local[:1]
     return f"{head}{'*' * max(2, len(local) - len(head))}@{domain}"
+
+
+def _auth_failure_hint() -> str:
+    """Explain a rejected sender credential in terms of the fix.
+
+    Gmail stopped accepting ordinary account passwords over SMTP in 2022, so
+    a plain password is the overwhelmingly common cause. An App Password is
+    always 16 characters, which is cheap to check and worth saying out loud.
+    """
+    base = "The mail server rejected the ATLAS sender credentials."
+    host = (settings.SMTP_HOST or "").lower()
+    if "gmail" in host or "googlemail" in host:
+        if len(settings.SMTP_PASSWORD) != 16:
+            return (
+                f"{base} Gmail needs a 16-character App Password (2-Step Verification must be on); "
+                "the configured SMTP_PASSWORD is not 16 characters, so it looks like a normal "
+                "account password."
+            )
+        return f"{base} Check that SMTP_USERNAME and the App Password belong to the same Google account."
+    return base
 
 
 def _build_message(
@@ -141,14 +170,21 @@ async def send_email(
 
     try:
         # Keeps a slow or hung SMTP server from blocking the whole event loop.
-        await asyncio.wait_for(asyncio.to_thread(_send_blocking, message), timeout=_TIMEOUT_SECONDS + 10)
+        await asyncio.wait_for(asyncio.to_thread(_send_blocking, message), timeout=_OVERALL_TIMEOUT_SECONDS)
     except asyncio.TimeoutError as exc:
         logger.warning("Email to %s timed out.", mask_email(to_address))
         raise EmailDeliveryError("The mail server did not respond in time.") from exc
     except smtplib.SMTPAuthenticationError as exc:
-        # The credential itself is never logged — only that it was rejected.
-        logger.error("SMTP rejected the configured ATLAS credentials.")
-        raise EmailDeliveryError("The mail server rejected the ATLAS sender credentials.") from exc
+        # Log the server's own rejection. It names the cause (Gmail's 535
+        # points at its BadCredentials help page) and contains no secret —
+        # without it, a misconfigured sender is a silent mystery. The
+        # credential itself is still never logged.
+        detail = exc.smtp_error.decode(errors="replace") if isinstance(exc.smtp_error, bytes) else str(exc.smtp_error)
+        logger.error(
+            "SMTP rejected the ATLAS sender credentials for %s (code %s): %s",
+            settings.SMTP_HOST, exc.smtp_code, detail.strip(),
+        )
+        raise EmailDeliveryError(_auth_failure_hint()) from exc
     except smtplib.SMTPRecipientsRefused as exc:
         logger.warning("SMTP refused recipient %s.", mask_email(to_address))
         raise EmailDeliveryError("The mail server refused the recipient address.") from exc

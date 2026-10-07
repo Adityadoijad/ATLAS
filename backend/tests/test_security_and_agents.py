@@ -64,7 +64,11 @@ def test_ai_generation_retries_transient_failures(monkeypatch) -> None:
     )
     attempts = 0
 
-    async def flaky_generation(request_arg: PlannerRequest) -> GeneratedTripPlanSchema:
+    # `_generate_plan_once` also receives the previous validation failure, so a
+    # retry can tell the model what was wrong with its last reply.
+    async def flaky_generation(
+        request_arg: PlannerRequest, previous_error: Exception | None = None
+    ) -> GeneratedTripPlanSchema:
         nonlocal attempts
         attempts += 1
         if attempts < 3:

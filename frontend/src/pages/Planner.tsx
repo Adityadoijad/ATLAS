@@ -12,13 +12,14 @@ import {
   transportOptions } from
 '../data/content';
 import { destinations } from '../data/destinations';
+import { BoardingLocationField } from '../components/planner/BoardingLocationField';
 import { generateTripPlan } from '../services/atlasApi';
 import { useAtlas } from '../contexts/AtlasContext';
 import { PlannerPreferences } from '../types';
 import { cn, formatRange, inr } from '../utils/format';
 
 const steps = [
-{ id: 1, title: 'Where to?', hint: 'Destination' },
+{ id: 1, title: 'Where to?', hint: 'Destination & start' },
 { id: 2, title: 'When?', hint: 'Travel dates' },
 { id: 3, title: "Who's going?", hint: 'Travellers' },
 { id: 4, title: 'Preferences', hint: 'Interests & budget' },
@@ -27,6 +28,7 @@ const steps = [
 
 const emptyPrefs: PlannerPreferences = {
   destination: '',
+  boardingLocation: null,
   startDate: '',
   endDate: '',
   adults: 2,
@@ -90,7 +92,14 @@ export function PlannerPage() {
 
   const validate = (current: number) => {
     const next: Record<string, string> = {};
-    if (current === 1 && !prefs.destination.trim()) next.destination = 'Tell ATLAS where you want to go.';
+    if (current === 1) {
+      if (!prefs.destination.trim()) next.destination = 'Tell ATLAS where you want to go.';
+      // A confirmed suggestion, not just typed text: this becomes the origin of
+      // the first route leg, so it has to be a place the geocoder placed.
+      if (!prefs.boardingLocation) {
+        next.boardingLocation = 'Choose where your journey starts, so the itinerary can begin there.';
+      }
+    }
     if (current === 2) {
       if (!prefs.startDate) next.startDate = 'Pick a start date.';
       if (!prefs.endDate) next.endDate = 'Pick an end date.';
@@ -109,16 +118,41 @@ export function PlannerPage() {
   };
 
   const generate = async () => {
+    // A real itinerary needs the account it will be saved to. The alternative
+    // used to be a fabricated plan with invented stops and costs and no marker
+    // distinguishing it from an AI-generated one, which is worse than asking
+    // the traveller to sign in.
+    if (!localStorage.getItem('atlas_access_token')) {
+      toast({
+        title: 'Sign in to plan a trip',
+        description: 'ATLAS saves your itinerary to your account and generates it with live data.',
+        tone: 'error'
+      });
+      navigate('/login');
+      return;
+    }
+
     setProcessing(true);
-    const plan = await generateTripPlan(prefs);
-    setPlan(plan);
+    try {
+      const plan = await generateTripPlan(prefs);
+      setPlan(plan);
+    } catch (error) {
+      // Surface the failure instead of leaving the agent animation spinning
+      // forever on a request that already ended.
+      setProcessing(false);
+      toast({
+        title: 'Could not generate your trip',
+        description: error instanceof Error ? error.message : undefined,
+        tone: 'error'
+      });
+    }
   };
 
   if (processing) {
     return (
       <AgentProcessing
         onComplete={() => {
-          toast({ title: 'Your itinerary is ready', description: 'Nine agents finished planning your trip.', tone: 'success' });
+          toast({ title: 'Your itinerary is ready', description: 'Saved to your account.', tone: 'success' });
           navigate('/itinerary');
         }} />);
 
@@ -199,6 +233,18 @@ export function PlannerPage() {
                     </Pill>
                 )}
                 </div>
+
+                <Field
+                label="Boarding / starting location"
+                error={errors.boardingLocation}
+                htmlFor="boarding-location">
+
+                  <BoardingLocationField
+                  value={prefs.boardingLocation}
+                  onChange={(location) => update('boardingLocation', location)}
+                  error={undefined} />
+
+                </Field>
               </div>
             }
 
@@ -314,6 +360,7 @@ export function PlannerPage() {
                 <dl className="divide-y divide-line rounded-2xl border border-line">
                   {[
                 ['Destination', prefs.destination || 'Not set'],
+                ['Starting from', prefs.boardingLocation?.displayName || 'Not set'],
                 ['Dates', formatRange(prefs.startDate, prefs.endDate)],
                 ['Travellers', `${prefs.adults} adults · ${prefs.children} children`],
                 ['Interests', prefs.interests.join(', ') || 'No preference'],

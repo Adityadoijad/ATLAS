@@ -84,7 +84,8 @@ def test_persisted_description_round_trips_category(client: TestClient, user_a_t
 
     response = client.post(
         "/api/trips/generate",
-        json={"destination": "Goa", "start_date": "2026-12-10", "end_date": "2026-12-10", "budget": 20000},
+        json={"destination": "Goa", "start_date": "2026-12-10", "end_date": "2026-12-10", "budget": 20000,
+              "boarding_location": {"name": "Nagpur Railway Station"}},
         headers=auth(user_a_token),
     )
     assert response.status_code == 201, response.text

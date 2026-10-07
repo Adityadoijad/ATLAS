@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from uuid import UUID
 from datetime import date, datetime
 from typing import Any, List, Optional
 from app.schemas.itinerary import ItineraryDayResponse
+from app.schemas.planner import BoardingLocation
 
 class TripBase(BaseModel):
     title: str
@@ -14,6 +15,10 @@ class TripBase(BaseModel):
     preferences: dict[str, Any] = Field(default_factory=dict)
     currency: str = "USD"
     status: str = "planning"
+    # Null on every trip planned before this existed, and on trips created
+    # through the plain /trips endpoint. The itinerary handles that by starting
+    # at the first planned stop, exactly as it always did.
+    boarding_location: Optional[BoardingLocation] = None
 
 class TripCreate(TripBase):
     pass
@@ -28,6 +33,7 @@ class TripUpdate(BaseModel):
     preferences: Optional[dict[str, Any]] = None
     currency: Optional[str] = None
     status: Optional[str] = None
+    boarding_location: Optional[BoardingLocation] = None
 
 class TripResponse(TripBase):
     id: UUID
@@ -36,6 +42,29 @@ class TripResponse(TripBase):
     updated_at: datetime
     itinerary_days: List[ItineraryDayResponse] = []
     data_context: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _derive_status_from_dates(self) -> "TripResponse":
+        """A trip whose end date has passed is past, whatever the column says.
+
+        The stored value was written once at creation and never revisited, so
+        every trip stayed "upcoming" for ever and the dashboard's completed
+        count could only ever be zero. Deriving it on read keeps that correct
+        without a scheduler, and without a migration that would go stale again
+        the day after it ran.
+
+        A status the user set deliberately ("cancelled") is left alone — this
+        only decides between the two date-driven states.
+        """
+        if self.status in {"cancelled", "archived"}:
+            return self
+        if self.end_date is None:
+            return self
+        # Purely date-driven, so the stored value cannot disagree with the
+        # calendar. This also normalises the schema's legacy "planning"
+        # default, which no client rendered as a distinct state.
+        self.status = "past" if self.end_date < date.today() else "upcoming"
+        return self
 
     @field_validator("data_context", mode="before")
     @classmethod

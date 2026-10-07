@@ -65,9 +65,10 @@ def test_recommendations_reflect_trip_preferences(client: TestClient, user_a_tok
         json={
             "destination": "Kolkata",
             "start_date": "2026-12-10",
-            "end_date": "2026-12-11",
+            "end_date": "2026-12-10",
             "budget": 10000,
             "preferences": {"interests": ["culture", "food"]},
+            "boarding_location": {"name": "Nagpur Railway Station"},
         },
         headers=headers,
     )
