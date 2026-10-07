@@ -255,7 +255,7 @@ export function DestinationDetailsPage() {
             <div className="mt-4 flex justify-between border-t border-line pt-3 text-[11px] text-muted">
                     {details.weather.forecast.map((day) =>
               <div key={day.timestamp} className="text-center">
-                        <p>{new Date(day.timestamp).toLocaleDateString(undefined, { weekday: 'short' })}</p>
+                        <p>{day.weekday ?? day.timestamp}</p>
                         <p className="font-semibold text-ink">{Math.round(day.temperatureC)}°</p>
                       </div>
               )}

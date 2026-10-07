@@ -61,6 +61,8 @@ export function SettingsPage() {
   const { theme, setTheme, language, setLanguage, toast, authUser } = useAtlas();
   const { t } = useTranslation();
   const [active, setActive] = useState('account');
+  // Session-only. There is no user-settings endpoint, so these reset on
+  // reload — the UI says so instead of implying they were stored.
   const [notifications, setNotifications] = useState({
     trip: true,
     price: true,
@@ -119,7 +121,7 @@ export function SettingsPage() {
                   </Select>
                 </Field>
               </div>
-              <Button onClick={() => toast({ title: 'Account updated', tone: 'success' })}>{t('common.saveChanges')}</Button>
+              <Button onClick={() => toast({ title: 'Not saved yet', description: 'ATLAS has no account-settings endpoint; your name and email come from your sign-in.', tone: 'info' })}>{t('common.saveChanges')}</Button>
             </div>
           }
 
@@ -142,13 +144,17 @@ export function SettingsPage() {
                 onChange={() => toast({ title: 'Two-factor settings', description: 'Mocked in this prototype.', tone: 'info' })} />
               
               </div>
-              <Button onClick={() => toast({ title: 'Password updated', tone: 'success' })}>{t('settings.updatePassword')}</Button>
+              <Button onClick={() => toast({ title: 'Password change unavailable', description: 'Password management is not implemented in this build.', tone: 'info' })}>{t('settings.updatePassword')}</Button>
             </div>
           }
 
           {active === 'notifications' &&
           <div>
               <h2 className="text-[15px] font-bold text-ink">Notifications</h2>
+              <p className="mt-1 text-[12.5px] text-muted">
+                Session only — these reset when you reload. ATLAS does not send
+                notifications yet.
+              </p>
               <div className="mt-3">
                 <Toggle
                 label="Trip updates"
@@ -247,13 +253,17 @@ export function SettingsPage() {
                   </Select>
                 </Field>
               </div>
-              <Button onClick={() => toast({ title: 'Travel defaults saved', tone: 'success' })}>{t('settings.saveDefaults')}</Button>
+              <Button onClick={() => toast({ title: 'Applied for this session', description: 'Travel defaults are not stored on your account; the planner asks per trip.', tone: 'info' })}>{t('settings.saveDefaults')}</Button>
             </div>
           }
 
           {active === 'privacy' &&
           <div>
               <h2 className="text-[15px] font-bold text-ink">{t('common.privacy')}</h2>
+              <p className="mt-1 text-[12.5px] text-muted">
+                Session only — these controls are not yet connected to how ATLAS
+                stores or shares your data.
+              </p>
               <div className="mt-3">
                 <Toggle
                 label="Public profile"

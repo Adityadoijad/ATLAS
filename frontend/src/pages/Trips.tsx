@@ -47,7 +47,7 @@ export function TripsPage() {
 
       <div className="space-y-4">
           {filtered.map((trip) =>
-        <TripCard key={trip.id} trip={trip} onView={() => navigate('/itinerary')} onDelete={() => setPendingDelete(trip)} />
+        <TripCard key={trip.id} trip={trip} onView={() => navigate(`/itinerary/${trip.id}`)} onDelete={() => setPendingDelete(trip)} />
         )}
         </div>
       }

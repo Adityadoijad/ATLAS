@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.rate_limit import ai_rate_limiter
 from app.main import app
 from app.models.base import Base
-from app.models import Booking, ItineraryDay, SavedPlace, Trip, User  # noqa: F401 - registers model metadata
+from app.models import Booking, ItineraryDay, LostFoundReport, SavedPlace, Trip, User  # noqa: F401 - registers model metadata
 
 
 @pytest.fixture(scope="session")
@@ -66,3 +66,23 @@ def user_a_token(client: TestClient) -> str:
 @pytest.fixture
 def user_b_token(client: TestClient) -> str:
     return register_and_login(client, email="bob@atlasapp.dev", name="Bob")
+
+
+@pytest.fixture(autouse=True)
+def _stub_boarding_geocoder(monkeypatch):
+    """Resolve boarding locations without touching Nominatim.
+
+    Trip generation now geocodes the boarding location, and Nominatim's usage
+    policy caps us at one request per second. Left unstubbed, the suite would
+    both depend on the network and crawl. Tests that care about geocoding
+    failures override this with their own stub.
+    """
+    async def fake_geocode_place(query: str):
+        return {
+            "name": query,
+            "display_name": f"{query}, India",
+            "latitude": 21.1458,
+            "longitude": 79.0882,
+        }
+
+    monkeypatch.setattr("app.api.routes.planner.geocode_place", fake_geocode_place)

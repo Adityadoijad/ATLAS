@@ -125,3 +125,87 @@ def test_destination_details_unconfigured_places_api_surfaces_reason(client: Tes
     assert body["activities_unavailable_reason"] == "Data currently unavailable"
     assert body["restaurants"] == []
     assert body["restaurants_unavailable_reason"] == "Data currently unavailable"
+
+
+# --------------------------------------------------------------------------
+# Destination photo
+# --------------------------------------------------------------------------
+
+def test_photo_endpoint_returns_a_real_photo(client, monkeypatch) -> None:
+    async def fake_photo(name: str, state: str):
+        return {
+            "url": f"https://commons.example/{name}.jpg",
+            "source": "Wikimedia Commons",
+            "source_url": "https://commons.example/File",
+            "author": "Someone",
+            "license": "CC BY-SA 4.0",
+        }
+
+    monkeypatch.setattr("app.api.routes.destinations.get_destination_photo_with_metadata", fake_photo)
+
+    body = client.get("/api/destinations/Manali/photo").json()
+    assert body["destination"] == "Manali"
+    assert body["url"] == "https://commons.example/Manali.jpg"
+    assert body["license"] == "CC BY-SA 4.0"
+
+
+def test_photo_endpoint_reports_absence_rather_than_another_place(client, monkeypatch) -> None:
+    """The bug this replaced: every unknown destination fell back to a Goa
+    beach photo, so a Manali trip rendered Goa under a Manali heading."""
+    async def no_photo(name: str, state: str):
+        return {"url": None, "source": None, "source_url": None, "author": None, "license": None}
+
+    monkeypatch.setattr("app.api.routes.destinations.get_destination_photo_with_metadata", no_photo)
+
+    body = client.get("/api/destinations/Nowhereatall/photo").json()
+    assert body["url"] is None
+    assert "goa" not in str(body).lower()
+
+
+def test_each_destination_is_queried_for_its_own_photo(client, monkeypatch) -> None:
+    queried: list[str] = []
+
+    async def record(name: str, state: str):
+        queried.append(name)
+        return {"url": f"https://x/{name}.jpg", "source": None, "source_url": None, "author": None, "license": None}
+
+    monkeypatch.setattr("app.api.routes.destinations.get_destination_photo_with_metadata", record)
+
+    goa = client.get("/api/destinations/Goa/photo").json()["url"]
+    manali = client.get("/api/destinations/Manali/photo").json()["url"]
+
+    assert queried == ["Goa", "Manali"]
+    assert goa != manali, "a destination must never inherit another's photograph"
+
+
+def test_opentripmap_popularity_is_not_presented_as_a_star_rating(monkeypatch) -> None:
+    """`rate` is a 1-7 importance tier, not a rating out of five.
+
+    Passing it through rendered "1.0" beside a star icon on real landmarks —
+    Nehru Park and a Buddhist monastery both looked one-star.
+    """
+    import asyncio
+
+    import httpx
+
+    from app.services.integrations import places as places_module
+
+    async def fake_get(self, url, params=None):
+        payload = [{
+            "name": "Nehru Park",
+            "rate": 1,
+            "kinds": "natural,parks",
+            "point": {"lat": 32.2396, "lon": 77.1887},
+        }]
+        return httpx.Response(200, json=payload, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+    monkeypatch.setattr(places_module.settings, "OPENTRIPMAP_API_KEY", "test-key")
+    places_module.activities_breaker.failures = 0
+    places_module.activities_breaker.opened_at = None
+
+    results = asyncio.run(places_module.get_activities(32.2396, 77.1887, 5))
+
+    assert results, "the attraction itself is still returned"
+    assert results[0]["name"] == "Nehru Park"
+    assert results[0]["rating"] is None

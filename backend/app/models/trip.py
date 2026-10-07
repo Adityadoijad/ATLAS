@@ -17,13 +17,24 @@ class Trip(Base):
     budget = Column(Float, nullable=True)
     preferences = Column(JSON, nullable=False, default=dict)
     currency = Column(String, default="USD", nullable=False)
-    status = Column(String, default="planning", nullable=False)
+    # "upcoming" or "past". The stored value is a starting point only:
+    # TripResponse derives the date-driven state on read, because a column
+    # written once at creation goes stale the day the trip ends. The default
+    # previously disagreed with what the planner writes ("planning" vs
+    # "upcoming"), which put trips created through /trips in a third state
+    # nothing handled.
+    status = Column(String, default="upcoming", nullable=False)
     # Per-agent live/estimated flags captured when the plan was generated.
     # Persisted so an e-ticket issued later can state which parts were live
     # data and which were AI estimates instead of guessing after the fact.
     # Null on trips created before this was recorded — the ticket omits the
     # section rather than inventing it.
     data_context = Column(JSON, nullable=True)
+    # Where the traveller's journey starts: {name, display_name, latitude,
+    # longitude}. Nullable because trips created before this feature have no
+    # boarding location, and inventing one for them would put a route leg on
+    # the itinerary that the user never asked for.
+    boarding_location = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

@@ -9,7 +9,7 @@ export const features = [
 {
   icon: 'Network',
   title: 'Multi-Agent Intelligence',
-  description: 'Nine specialised agents research travel, stays, food, weather and routes in parallel.'
+  description: 'Specialised agents research routes, stays, food and weather in parallel.'
 },
 {
   icon: 'UserRoundCheck',

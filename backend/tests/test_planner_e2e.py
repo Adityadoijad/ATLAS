@@ -61,6 +61,7 @@ def test_trip_generation_persists_when_realtime_agents_timeout(
             "travelers": 1,
             "preferences": {},
             "currency": "INR",
+            "boarding_location": {"name": "Nagpur Railway Station"},
         },
         headers={"Authorization": f"Bearer {user_a_token}"},
     )

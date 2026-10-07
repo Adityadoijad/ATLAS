@@ -8,7 +8,7 @@ import logging
 from app.schemas.destination import DestinationDetailsSchema, PlaceSchema, WeatherDetailSchema
 from app.services.integrations.maps import geocode_destination
 from app.services.integrations.places import get_activities, get_restaurants
-from app.services.integrations.weather import get_weather_detailed
+from app.services.integrations.weather import WeatherUnavailable, get_weather_detailed
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +17,14 @@ async def _safe_weather(destination: str) -> WeatherDetailSchema:
     try:
         data = await get_weather_detailed(destination)
         return WeatherDetailSchema(is_realtime_data=True, **data)
+    except WeatherUnavailable as exc:
+        # This message is written by our own integration, so it is safe to log
+        # and safe to show. Provider exception text is not: httpx stringifies to
+        # the request URL, which carries the API key as `appid`.
+        logger.warning("Weather lookup failed for %r: %s", destination, exc)
+        return WeatherDetailSchema(is_realtime_data=False, unavailable_reason=str(exc))
     except Exception as exc:
-        logger.warning("Weather lookup failed for %r: %s: %s", destination, type(exc).__name__, exc)
+        logger.warning("Weather lookup failed for %r: %s", destination, type(exc).__name__)
         return WeatherDetailSchema(is_realtime_data=False, unavailable_reason="Weather data unavailable")
 
 
@@ -31,7 +37,9 @@ async def _safe_places(fetcher, latitude: float | None, longitude: float | None,
             return [], "No results found nearby."
         return [PlaceSchema(**item) for item in items], None
     except Exception as exc:
-        logger.warning("Places lookup failed via %s: %s: %s", getattr(fetcher, "__name__", fetcher), type(exc).__name__, exc)
+        # Type name only — the provider key travels in the request URL, and
+        # httpx exceptions stringify to that URL.
+        logger.warning("Places lookup failed via %s: %s", getattr(fetcher, "__name__", fetcher), type(exc).__name__)
         return [], "Data currently unavailable"
 
 

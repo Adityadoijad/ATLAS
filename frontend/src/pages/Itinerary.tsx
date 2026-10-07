@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ChevronDownIcon,
@@ -15,11 +15,15 @@ import {
 'lucide-react';
 import { ItineraryTimeline, MapCard } from '../components/itinerary/Timeline';
 import { FoodPlace, FoodPlacesCard } from '../components/itinerary/FoodPlacesCard';
-import { BudgetCard, CommunityInsight, WeatherCard } from '../components/cards/ContentCards';
+import { BudgetCard, WeatherCard } from '../components/cards/ContentCards';
+import { DestinationImage } from '../components/cards/DestinationImage';
+import { weatherOutlook } from '../utils/weatherOutlook';
+import { Trip, TripRoute } from '../types';
+import { useDestinationForecast } from '../hooks/useDestinationForecast';
 import { BookingFlow } from '../components/booking/BookingFlow';
 import { Badge, Button, Card, EmptyState, Skeleton } from '../components/ui/Primitives';
 import { useAtlas } from '../contexts/AtlasContext';
-import { fetchLatestTripPlan, generateTripPlan, persistTripPlan } from '../services/atlasApi';
+import { fetchLatestTripPlan, fetchTripPlanById, fetchTripRoute, generateTripPlan, persistTripPlan } from '../services/atlasApi';
 import { formatRange, inr } from '../utils/format';
 import { buildGoogleMapsDirectionsUrl, limitRouteStops, routeStopsFromDays } from '../utils/googleMaps';
 
@@ -30,24 +34,33 @@ export function ItineraryPage() {
   const [bookingOpen, setBookingOpen] = useState(false);
   const navigate = useNavigate();
 
-  const [restoring, setRestoring] = useState(!plan);
+  // Addressed by trip id when opened from the Trips page, so the correct trip
+  // loads on a refresh or a shared link rather than whatever was last planned.
+  const { tripId } = useParams<{tripId?: string;}>();
+  const [restoring, setRestoring] = useState(!plan || Boolean(tripId));
 
-  // Arriving here without a plan in context (a refresh, or a direct link)
-  // restores the traveller's most recent saved trip. It must never generate a
-  // stand-in trip for some other destination — showing a Goa itinerary to
-  // someone who planned Raipur is worse than showing nothing.
+  // Arriving here without the requested plan in context (a refresh, a direct
+  // link, or a different trip than the one held) loads it from the server. It
+  // must never generate a stand-in trip for some other destination — showing
+  // a Goa itinerary to someone who opened Raipur is worse than showing
+  // nothing.
   useEffect(() => {
-    if (plan) return;
+    const wantsOther = Boolean(tripId) && plan?.id !== tripId;
+    if (plan && !wantsOther) return;
+
     const token = localStorage.getItem('atlas_access_token');
     if (!token) {
       setRestoring(false);
       return;
     }
+
     let cancelled = false;
     setRestoring(true);
-    fetchLatestTripPlan(token).
-    then((latest) => {
-      if (!cancelled && latest) setPlan(latest);
+    // A specific trip when one was asked for; otherwise the most recent.
+    const load = tripId ? fetchTripPlanById(tripId, token) : fetchLatestTripPlan(token);
+    load.
+    then((loaded) => {
+      if (!cancelled && loaded) setPlan(loaded);
     }).
     catch(() => {/* fall through to the empty state below */}).
     finally(() => {
@@ -56,7 +69,56 @@ export function ItineraryPage() {
     return () => {
       cancelled = true;
     };
-  }, [plan, setPlan]);
+  }, [tripId, plan, setPlan]);
+
+  // The itinerary's own destination and dates, shaped for the same pure outlook
+  // logic the dashboard uses. Declared here, above the early returns below,
+  // because hooks must run in the same order on every render — and null while
+  // the plan is still loading, so no request goes out for "undefined".
+  const weatherTrip = useMemo<Trip | null>(() => {
+    if (!plan?.destination || !plan.startDate || !plan.endDate) return null;
+    return {
+      id: plan.id,
+      destination: plan.destination,
+      country: plan.country,
+      image: plan.image,
+      startDate: plan.startDate,
+      endDate: plan.endDate,
+      travelers: plan.travelers,
+      budget: plan.budget,
+      status: 'upcoming'
+    };
+  }, [plan?.id, plan?.destination, plan?.country, plan?.image, plan?.startDate, plan?.endDate, plan?.travelers, plan?.budget]);
+
+  const forecast = useDestinationForecast(weatherTrip?.destination ?? null);
+
+  // Travel distance and time for the whole trip. Deliberately a separate
+  // request: geocoding every stop runs at one per second, so the itinerary
+  // renders immediately and the travel metadata fills in as this lands.
+  // `undefined` means still loading; a loaded route with unavailable legs is a
+  // different state, and the timeline says so rather than showing 0 km.
+  const [tripRoute, setTripRoute] = useState<TripRoute | undefined>(undefined);
+
+  useEffect(() => {
+    const id = plan?.id;
+    const token = localStorage.getItem('atlas_access_token');
+    if (!id || !token) return;
+
+    let active = true;
+    setTripRoute(undefined);
+    fetchTripRoute(id, token).
+    then((route) => {
+      if (active) setTripRoute(route);
+    }).
+    catch(() => {
+      // An empty route still counts as loaded: the timeline shows "travel time
+      // unavailable" rather than waiting forever on a spinner.
+      if (active) setTripRoute({ tripId: id, stops: [], legs: [], unavailableReason: 'Travel times could not be loaded.' });
+    });
+    return () => {
+      active = false;
+    };
+  }, [plan?.id]);
 
   if (!plan && restoring) {
     return (
@@ -70,13 +132,21 @@ export function ItineraryPage() {
 
   }
 
-  if (!plan) {
+  // A trip was asked for but is not this one: it could not be loaded (deleted,
+  // or not the caller's). Show the empty state rather than someone else's trip.
+  if (!plan || (tripId && plan.id !== tripId)) {
     return (
       <EmptyState
         icon={<SparklesIcon className="h-6 w-6" />}
-        title="No itinerary yet"
-        description="Plan a trip and ATLAS will build a day-by-day itinerary for your destination."
-        action={<Button onClick={() => navigate('/plan')}>Plan a New Trip</Button>} />);
+        title={tripId ? 'Trip not found' : 'No itinerary yet'}
+        description={
+        tripId ?
+        'This trip could not be opened. It may have been deleted, or it belongs to another account.' :
+        'Plan a trip and ATLAS will build a day-by-day itinerary for your destination.'
+        }
+        action={<Button onClick={() => navigate(tripId ? '/trips' : '/plan')}>
+            {tripId ? 'Back to Trips' : 'Plan a New Trip'}
+          </Button>} />);
 
 
   }
@@ -89,6 +159,16 @@ export function ItineraryPage() {
       endDate: plan.endDate,
       adults: plan.travelers,
       children: 0,
+      // Carried forward, or regenerating would quietly strip the trip's origin
+      // and the first leg would restart from the first activity again.
+      boardingLocation: plan.boardingLocation
+        ? {
+            name: plan.boardingLocation.name,
+            displayName: plan.boardingLocation.displayName ?? plan.boardingLocation.name,
+            latitude: plan.boardingLocation.latitude ?? 0,
+            longitude: plan.boardingLocation.longitude ?? 0
+          }
+        : null,
       interests: ['Nature', 'Food'],
       transport: ['Local Transport'],
       accommodation: ['Hotel'],
@@ -188,8 +268,17 @@ export function ItineraryPage() {
   // per-stop coordinates to use — Google Maps receives place names instead.
   // Listed and linked from the same set, so the card shows exactly the route
   // the Google Maps link opens.
-  const routeStops = limitRouteStops(routeStopsFromDays(plan.days, plan.destination));
-  const directionsUrl = buildGoogleMapsDirectionsUrl(routeStops);
+  // The backend's canonical sequence is authoritative: it starts at the
+  // boarding location and both the timeline and the map render from it. The
+  // locally-derived list is only the Google Maps hand-off, which is text-based.
+  const canonicalStops = tripRoute?.stops.map((stop) => stop.label) ?? [];
+  const routeStops = canonicalStops.length > 0
+    ? limitRouteStops(canonicalStops)
+    : limitRouteStops(routeStopsFromDays(plan.days, plan.destination));
+  const directionsUrl = buildGoogleMapsDirectionsUrl(
+    tripRoute?.stops.map((stop) => stop.query) ?? routeStops
+  );
+  const boardingLabel = plan.boardingLocation?.name ?? null;
 
   const formatLabels = (labels: string[]) =>
   labels.length <= 1 ?
@@ -221,11 +310,11 @@ export function ItineraryPage() {
       }
       <Card className="overflow-hidden">
         <div className="relative h-44 sm:h-56">
-          <img src={plan.image} alt={plan.destination} className="h-full w-full object-cover" />
+          <DestinationImage destination={plan.destination} src={plan.image} className="h-full w-full" />
           <div className="absolute inset-0 bg-slate-900/45" />
           <div className="absolute inset-x-0 bottom-0 p-6">
             <Badge tone="brand" className="bg-white/90 text-brand">
-              <SparklesIcon className="h-3 w-3" /> Generated by 9 agents
+              <SparklesIcon className="h-3 w-3" /> Generated by ATLAS
             </Badge>
             <h1 className="mt-3 font-display text-3xl font-bold text-white sm:text-4xl">Your Personalized Trip</h1>
             <p className="mt-1 text-[14px] text-white/85">
@@ -293,7 +382,9 @@ export function ItineraryPage() {
               Why ATLAS recommended this
             </span>
             <span className="mt-0.5 block text-[13px] text-muted">
-              Seven reasoning signals from the planner, optimizer and constraint solver.
+              {plan.reasoning.length === 1 ?
+              'One reasoning signal from the planner.' :
+              `${plan.reasoning.length} reasoning signals from the planner.`}
             </span>
           </span>
           <ChevronDownIcon className={`h-4.5 w-4.5 shrink-0 text-muted transition-transform ${explanationOpen ? 'rotate-180' : ''}`} />
@@ -322,25 +413,19 @@ export function ItineraryPage() {
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="order-2 space-y-5 lg:order-1">
           <h2 className="text-xl font-bold text-ink">Daily itinerary</h2>
-          <ItineraryTimeline days={plan.days} />
+          <ItineraryTimeline days={plan.days} route={tripRoute} />
         </div>
         <div className="order-1 space-y-5 lg:order-2">
           <MapCard
             destination={plan.destination}
             stops={routeStops}
-            directionsUrl={directionsUrl} />
+            directionsUrl={directionsUrl}
+            route={tripRoute}
+            boardingLabel={boardingLabel} />
           
           <FoodPlacesCard places={foodPlaces} destination={plan.destination} />
-          <WeatherCard days={plan.weather} />
+          <WeatherCard outlook={weatherOutlook(weatherTrip, forecast)} />
           <BudgetCard budget={plan.budget} spent={plan.estimatedCost} breakdown={plan.breakdown} />
-          <CommunityInsight
-            title="Community verdict"
-            quote="Travellers frequently mention this area for authentic local food and calmer evenings than the main strip."
-            rating={4.7}
-            reviews={5240}
-            positives={['Authentic local food', 'Quiet mornings', 'Short travel distances']}
-            concerns={['Busy on weekends', 'Limited late-night transport']} />
-          
           <Card className="p-5">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand">

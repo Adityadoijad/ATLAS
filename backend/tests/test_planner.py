@@ -31,6 +31,7 @@ async def fake_generate_trip_plan(_: object) -> PlannerResult:
 def test_generate_trip_persists_trip_and_days_atomically(client: TestClient, db_session: Session, user_a_token: str, monkeypatch) -> None:
     monkeypatch.setattr("app.api.routes.planner.generate_trip_plan", fake_generate_trip_plan)
     response = client.post("/api/trips/generate", json={
+        "boarding_location": {"name": "Nagpur Railway Station"},
         "destination": "Goa",
         "start_date": "2026-12-10",
         "end_date": "2026-12-11",
@@ -51,6 +52,7 @@ def test_trip_generation_rate_limit(client: TestClient, user_a_token: str, monke
     payload = {
         "destination": "Goa", "start_date": "2026-12-10", "end_date": "2026-12-11",
         "budget": 25000, "travelers": 2, "preferences": {}, "currency": "INR",
+        "boarding_location": {"name": "Nagpur Railway Station"},
     }
     for _ in range(3):
         assert client.post("/api/trips/generate", json=payload, headers=auth(user_a_token)).status_code == 201

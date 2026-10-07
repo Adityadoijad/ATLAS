@@ -48,7 +48,7 @@ export function Sidebar() {
       <div className="mt-6 rounded-2xl border border-line bg-canvas p-4">
         <p className="text-[13px] font-semibold text-ink">Multi-agent planning</p>
         <p className="mt-1 text-[12px] leading-relaxed text-muted">
-          Nine agents coordinate your next itinerary in a couple of minutes.
+          Specialised agents coordinate your next itinerary in a couple of minutes.
         </p>
         <NavLink
           to="/plan"

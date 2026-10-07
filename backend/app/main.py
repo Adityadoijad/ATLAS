@@ -10,12 +10,19 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.core.config import settings
 from app.api.routes.chat import router as chat_router
 from app.api.routes.auth import router as auth_router
+from fastapi.staticfiles import StaticFiles
+
 from app.api.routes.bookings import router as bookings_router
+from app.api.routes.lost_found import router as lost_found_router
+from app.services.lost_found_media import LOST_FOUND_DIR, UPLOAD_ROOT
 from app.api.routes.trips import router as trips_router
 from app.api.routes.saved_places import router as saved_places_router
 from app.api.routes.planner import router as planner_router
 from app.api.routes.recommendations import router as recommendations_router
 from app.api.routes.destinations import router as destinations_router
+from app.api.routes.weather import router as weather_router
+from app.api.routes.routing import router as routing_router
+from app.api.routes.locations import router as locations_router
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -54,6 +61,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # ── Uploaded media ──────────────────────────────────────────────────────
+    # Lost & Found photos live on disk; the database stores only their path.
+    LOST_FOUND_DIR.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(UPLOAD_ROOT)), name="uploads")
+
     # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], summary="Health check")
     async def health():
@@ -63,10 +75,14 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(trips_router, prefix="/api")
     app.include_router(bookings_router, prefix="/api")
+    app.include_router(lost_found_router, prefix="/api")
     app.include_router(planner_router, prefix="/api")
     app.include_router(saved_places_router, prefix="/api")
     app.include_router(recommendations_router, prefix="/api")
     app.include_router(destinations_router, prefix="/api")
+    app.include_router(weather_router, prefix="/api")
+    app.include_router(routing_router, prefix="/api")
+    app.include_router(locations_router, prefix="/api")
     app.include_router(chat_router, prefix="/api", tags=["Chat"])
 
     return app

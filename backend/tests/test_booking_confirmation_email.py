@@ -51,6 +51,17 @@ def configured(monkeypatch):
     monkeypatch.setattr(email_service.settings, "SMTP_FROM_EMAIL", "no-reply@atlas.test")
 
 
+@pytest.fixture
+def unconfigured(monkeypatch):
+    """Force the no-mail-server case.
+
+    Without this the test depends on the developer's own .env: it passed while
+    SMTP was unset and broke the moment real credentials were added.
+    """
+    monkeypatch.setattr(email_service.settings, "SMTP_HOST", "")
+    monkeypatch.setattr(email_service.settings, "SMTP_FROM_EMAIL", "")
+
+
 # --------------------------------------------------------------------------
 # Successful delivery
 # --------------------------------------------------------------------------
@@ -221,7 +232,9 @@ def test_each_user_gets_their_own_address(
 # Capability reporting
 # --------------------------------------------------------------------------
 
-def test_capability_is_false_without_smtp_configuration(client: TestClient, user_a_token: str) -> None:
+def test_capability_is_false_without_smtp_configuration(
+    client: TestClient, user_a_token: str, unconfigured
+) -> None:
     response = client.get("/api/bookings/email-capability", headers=auth(user_a_token))
     assert response.status_code == 200
     assert response.json() == {"available": False}
@@ -239,7 +252,7 @@ def test_capability_requires_authentication(client: TestClient) -> None:
 # The SMTP layer itself
 # --------------------------------------------------------------------------
 
-def test_send_email_refuses_when_unconfigured() -> None:
+def test_send_email_refuses_when_unconfigured(unconfigured) -> None:
     import asyncio
 
     with pytest.raises(EmailNotConfiguredError):

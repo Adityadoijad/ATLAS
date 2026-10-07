@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.schemas.destination import DestinationDetailsSchema
+from app.schemas.destination import DestinationDetailsSchema, DestinationPhotoSchema
 from app.schemas.recommendations import DiscoverIndiaDestinationSchema
 from app.services.destination_details_service import build_destination_details
+from app.services.integrations.photos import get_destination_photo_with_metadata
 from app.services.discover_india_service import get_india_recommendations
 
 logger = logging.getLogger(__name__)
@@ -42,3 +43,22 @@ async def get_destination_details(
     rather than showing fabricated data."""
     return await build_destination_details(destination)
 
+
+
+@router.get("/{destination}/photo", response_model=DestinationPhotoSchema)
+async def get_destination_photo(destination: str) -> DestinationPhotoSchema:
+    """A real photograph of a destination, from Wikimedia Commons.
+
+    Public, because trip cards render before the browser has done anything
+    else, and the underlying lookup is cached for a day.
+
+    Exists so no part of ATLAS has to fall back to a picture of a different
+    place. A destination with no genuine photo returns `url: null` and the UI
+    draws a neutral placeholder — the previous behaviour put a Goa beach under
+    a Manali heading.
+
+    Reuses the same Wikimedia service that Discover India already uses; it
+    never raises and returns nulls on any failure.
+    """
+    photo = await get_destination_photo_with_metadata(destination, "")
+    return DestinationPhotoSchema(destination=destination, **photo)

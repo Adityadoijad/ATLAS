@@ -67,6 +67,8 @@ export function App() {
           { path: '/explore/:name', element: <DestinationDetailsPage /> },
           { path: '/plan', element: <PlannerPage /> },
           { path: '/itinerary', element: <ItineraryPage /> },
+          // Same page, addressed by trip so it survives a refresh and a shared link.
+          { path: '/itinerary/:tripId', element: <ItineraryPage /> },
           { path: '/trips', element: <TripsPage /> },
           { path: '/bookings', element: <BookingsPage /> },
           { path: '/food', element: <FoodPage /> },

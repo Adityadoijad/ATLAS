@@ -22,7 +22,7 @@ const pillars = [
 {
   icon: CpuIcon,
   title: 'Multi-agent architecture',
-  body: 'Rather than one model answering everything, nine specialised agents each own a domain and report back to a planner.'
+  body: 'Rather than one model answering everything, specialised agents each own a domain and report back to a planner.'
 },
 {
   icon: UsersIcon,

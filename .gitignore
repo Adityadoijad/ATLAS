@@ -27,3 +27,7 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# User-uploaded Lost & Found photos. Stored on disk so image bytes stay out
+# of Postgres; they are runtime data, not source.
+backend/uploads/

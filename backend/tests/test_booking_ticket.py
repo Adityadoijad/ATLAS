@@ -84,7 +84,8 @@ def _generated_trip(client: TestClient, token: str, monkeypatch) -> dict:
     monkeypatch.setattr("app.api.routes.planner.generate_trip_plan", fake_plan)
     response = client.post(
         "/api/trips/generate",
-        json={"destination": "Manali", "start_date": "2026-12-10", "end_date": "2026-12-11", "budget": 30000},
+        json={"destination": "Manali", "start_date": "2026-12-10", "end_date": "2026-12-11", "budget": 30000,
+              "boarding_location": {"name": "Nagpur Railway Station"}},
         headers=auth(token),
     )
     assert response.status_code == 201, response.text
