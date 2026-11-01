@@ -85,9 +85,9 @@ The architecture is designed so that each specialized agent focuses on a particu
 
 ### Frontend
 
-* Next.js
 * React
 * TypeScript
+* Vite
 * Tailwind CSS
 * Component-based UI architecture
 
@@ -181,29 +181,19 @@ copyright page. Do not remove that attribution.
 ATLAS/
 │
 ├── frontend/
-│   ├── app/
-│   ├── components/
-│   ├── features/
-│   ├── services/
-│   ├── hooks/
-│   ├── lib/
-│   ├── types/
-│   ├── utils/
+│   ├── src/
 │   └── public/
 │
 ├── backend/
 │   ├── app/
-│   ├── agents/
-│   ├── api/
-│   ├── models/
-│   ├── services/
-│   └── database/
+│   ├── alembic/
+│   ├── requirements.txt
+│   └── tests/
 │
+├── database/
+├── deployment/
 ├── docs/
-│   ├── architecture/
-│   ├── research/
-│   └── project/
-│
+├── render.yaml
 ├── .gitignore
 ├── README.md
 └── docker-compose.yml
@@ -359,17 +349,14 @@ Security considerations include:
 * [x] Travel planning workflow
 * [x] Frontend UI development
 * [x] Core travel interface
-* [ ] Backend API
-* [ ] Database integration
-* [ ] AI agent implementation
-* [ ] Weather integration
-* [ ] Maps integration
-* [ ] Review/community data integration
+* [x] Backend API and PostgreSQL integration
+* [x] AI-powered travel planning and assistant
+* [x] Live weather, destination, place, and routing integrations
+* [x] Lost & Found, trip management, and mock booking workflows
+* [x] Automated backend and frontend tests
 * [ ] Voice assistance
 * [ ] Multilingual support
-* [ ] Mock booking integration
-* [ ] End-to-end testing
-* [ ] Cloud deployment
+* [ ] Live cloud deployment and production verification
 
 ---
 
@@ -421,6 +408,35 @@ ATLAS is being developed as a collaborative software project using Git and GitHu
 Development follows a modular architecture so frontend, backend, AI agents, integrations, and database components can be developed independently and integrated progressively.
 
 ---
+
+## 🚀 Deploying on Render
+
+The repository includes a Render Blueprint at [`render.yaml`](./render.yaml)
+that configures the frontend as a static site, the FastAPI backend as a web
+service, and a managed PostgreSQL database. The Blueprint also runs database
+migrations before deploying the API and provisions persistent storage for
+Lost & Found photos.
+
+To deploy:
+
+1. Push this repository to GitHub and create a Blueprint in Render from the
+   branch containing `render.yaml`.
+2. Provide `GROQ_API_KEY` when prompted. Render generates `JWT_SECRET_KEY`;
+   keep secrets in Render's environment settings, not in Git.
+3. Review the service plans and deploy. The API's persistent disk requires a
+   paid web service and limits the service to one instance while uploads are
+   stored on that disk.
+4. Configure optional provider credentials in Render as needed:
+   `OPENWEATHER_API_KEY`, `OPENTRIPMAP_API_KEY`, Google OAuth credentials, and
+   SMTP settings.
+5. If you change the default Render service names or use a custom domain,
+   update the frontend API URL, backend `FRONTEND_URL` and `ALLOWED_ORIGINS`,
+   and Google OAuth redirect URI to match.
+
+See the [Render deployment guide](./deployment/render/README.md) for service
+commands, environment variables, persistent storage, and OAuth setup. Render
+builds the frontend with `VITE_API_URL`; the local frontend `.env` is not
+required for deployment.
 
 ## 📄 License
 
