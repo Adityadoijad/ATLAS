@@ -14,6 +14,14 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
+def _normalize_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 class Settings:
     MIN_JWT_SECRET_BYTES = 32
     # AI provider (Groq). Model is configurable so it is never hardcoded at
@@ -34,7 +42,7 @@ class Settings:
     # STARTTLS on 587 is the common case; SSL-on-connect is port 465.
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").strip().lower() in ("1", "true", "yes")
     SMTP_USE_SSL: bool = os.getenv("SMTP_USE_SSL", "false").strip().lower() in ("1", "true", "yes")
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    DATABASE_URL: str = _normalize_database_url(os.getenv("DATABASE_URL", ""))
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL")
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")

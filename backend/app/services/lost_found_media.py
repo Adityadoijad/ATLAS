@@ -14,14 +14,18 @@ from __future__ import annotations
 import base64
 import binascii
 import logging
+import os
 import re
 import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# backend/uploads/lost-found
-UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "uploads"
+# Defaults to backend/uploads locally; production can point this at a
+# persistent volume without changing the public upload paths.
+UPLOAD_ROOT = Path(
+    os.getenv("UPLOAD_DIR") or str(Path(__file__).resolve().parents[2] / "uploads")
+)
 LOST_FOUND_DIR = UPLOAD_ROOT / "lost-found"
 PUBLIC_PREFIX = "/uploads/lost-found"
 
